@@ -93,6 +93,7 @@ public:
 #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_CONSUMER_ATTACH_CALLBACK)
     virtual bool needsAttachNotify();
 #endif
+    virtual void onBufferDetached(int slot);
 };
 
 #else
@@ -109,6 +110,7 @@ public:
 #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_CONSUMER_ATTACH_CALLBACK)
     virtual bool needsAttachNotify() { return false; }
 #endif
+    virtual void onBufferDetached(int /**slot**/) {}
 };
 
 } // namespace android

@@ -74,6 +74,7 @@ public:
     // via onRemoteDied. This should return a constant value.
     virtual bool needsDeathNotify() { return false; }
 #endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_PLATFORM_API_IMPROVEMENTS)
+
 };
 
 class StubSurfaceListener : public SurfaceListener {
@@ -494,6 +495,7 @@ protected:
             return mSurfaceListener->needsAttachNotify();
         }
 #endif
+
     private:
         wp<Surface> mParent;
         sp<SurfaceListener> mSurfaceListener;
