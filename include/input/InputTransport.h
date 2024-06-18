@@ -275,7 +275,7 @@ public:
      * Return DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t receiveMessage(InputMessage* msg);
+    android::base::Result<InputMessage> receiveMessage();
 
     /* Tells whether there is a message in the channel available to be received.
      *
