@@ -37,6 +37,7 @@
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
 using aidl::android::hardware::graphics::composer3::Composition;
+using aidl::android::hardware::graphics::composer3::LutProperties;
 
 namespace android::compositionengine {
 
@@ -842,6 +843,12 @@ void OutputLayer::applyDeviceLayerRequest(hal::LayerRequest request) {
                   toString(request).c_str(), static_cast<int>(request));
             break;
     }
+}
+
+void OutputLayer::applyDeviceLayerLut(LutProperties /*lutProperties*/,
+                                      ndk::ScopedFileDescriptor /*lutPfd*/) {
+    // TODO(b/329472856): decode the shared memory of the pfd, and store the lut data into
+    // OutputLayerCompositionState#hwc struct
 }
 
 bool OutputLayer::needsFiltering() const {
