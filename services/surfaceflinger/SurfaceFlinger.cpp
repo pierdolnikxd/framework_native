@@ -133,7 +133,6 @@
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
-#include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "DisplayRenderArea.h"
 #include "Effects/Daltonizer.h"
@@ -153,6 +152,7 @@
 #include "LayerVector.h"
 #include "MutexUtils.h"
 #include "NativeWindowSurface.h"
+#include "PowerAdvisor/PowerAdvisor.h"
 #include "RegionSamplingThread.h"
 #include "RenderAreaBuilder.h"
 #include "Scheduler/EventThread.h"
@@ -426,7 +426,11 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)),
         mInternalDisplayDensity(
                 getDensityFromProperty("ro.sf.lcd_density", !mEmulatedDisplayDensity)),
-        mPowerAdvisor(std::make_unique<Hwc2::impl::PowerAdvisor>(*this)),
+        mPowerAdvisor(std::make_unique<
+                      adpf::impl::PowerAdvisor>([this] { disableExpensiveRendering(); },
+                                                std::chrono::milliseconds(
+                                                        sysprop::display_update_imminent_timeout_ms(
+                                                                80)))),
         mWindowInfosListenerInvoker(sp<WindowInfosListenerInvoker>::make()),
         mSkipPowerOnForQuiescent(base::GetBoolProperty("ro.boot.quiescent"s, false)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
