@@ -16,17 +16,38 @@
 
 #pragma once
 
+#include <chrono>
 #include <ostream>
+#include <vector>
 
+#include <android-base/logging.h>
+#include <gtest/gtest.h>
 #include <input/Input.h>
 
 namespace android {
+
+namespace {
+
+using ::testing::Matcher;
+
+} // namespace
 
 /**
  * This file contains a copy of Matchers from .../inputflinger/tests/TestEventMatchers.h. Ideally,
  * implementations must not be duplicated.
  * TODO(b/365606513): Find a way to share TestEventMatchers.h between inputflinger and libinput.
  */
+
+struct PointerArgs {
+    float x{0.0f};
+    float y{0.0f};
+    bool isResampled{false};
+};
+
+struct Sample {
+    std::chrono::nanoseconds eventTime{0};
+    std::vector<PointerArgs> pointers{};
+};
 
 class WithDeviceIdMatcher {
 public:
@@ -79,32 +100,88 @@ inline WithMotionActionMatcher WithMotionAction(int32_t action) {
     return WithMotionActionMatcher(action);
 }
 
-class MotionEventIsResampledMatcher {
+class WithSampleCountMatcher {
 public:
     using is_gtest_matcher = void;
+    explicit WithSampleCountMatcher(size_t sampleCount) : mExpectedSampleCount{sampleCount} {}
 
     bool MatchAndExplain(const MotionEvent& motionEvent, std::ostream*) const {
-        const size_t numSamples = motionEvent.getHistorySize() + 1;
-        const size_t numPointers = motionEvent.getPointerCount();
-        if (numPointers <= 0 || numSamples <= 0) {
+        return (motionEvent.getHistorySize() + 1) == mExpectedSampleCount;
+    }
+
+    void DescribeTo(std::ostream* os) const { *os << "sample count " << mExpectedSampleCount; }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "different sample count"; }
+
+private:
+    const size_t mExpectedSampleCount;
+};
+
+inline WithSampleCountMatcher WithSampleCount(size_t sampleCount) {
+    return WithSampleCountMatcher(sampleCount);
+}
+
+class WithSampleMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithSampleMatcher(size_t sampleIndex, const Sample& sample)
+          : mSampleIndex{sampleIndex}, mSample{sample} {}
+
+    bool MatchAndExplain(const MotionEvent& motionEvent, std::ostream* os) const {
+        if (motionEvent.getHistorySize() < mSampleIndex) {
+            *os << "sample index out of bounds";
             return false;
         }
-        for (size_t i = 0; i < numPointers; ++i) {
+
+        if (motionEvent.getHistoricalEventTime(mSampleIndex) != mSample.eventTime.count()) {
+            *os << "event time mismatch. sample: "
+                << motionEvent.getHistoricalEventTime(mSampleIndex)
+                << " expected: " << mSample.eventTime.count();
+            return false;
+        }
+
+        if (motionEvent.getPointerCount() != mSample.pointers.size()) {
+            *os << "pointer count mismatch. sample: " << motionEvent.getPointerCount()
+                << " expected: " << mSample.pointers.size();
+            return false;
+        }
+
+        for (size_t pointerIndex = 0; pointerIndex < motionEvent.getPointerCount();
+             ++pointerIndex) {
             const PointerCoords& pointerCoords =
-                    motionEvent.getSamplePointerCoords()[numSamples * numPointers + i];
-            if (!pointerCoords.isResampled) {
+                    *(motionEvent.getHistoricalRawPointerCoords(pointerIndex, mSampleIndex));
+            if ((pointerCoords.getX() != mSample.pointers[pointerIndex].x) ||
+                (pointerCoords.getY() != mSample.pointers[pointerIndex].y)) {
+                *os << "sample coordinates mismatch at pointer index " << pointerIndex
+                    << ". sample: (" << pointerCoords.getX() << ", " << pointerCoords.getY()
+                    << ") expected: (" << mSample.pointers[pointerIndex].x << ", "
+                    << mSample.pointers[pointerIndex].y << ")";
+                return false;
+            }
+            if (motionEvent.isResampled(pointerIndex, mSampleIndex) !=
+                mSample.pointers[pointerIndex].isResampled) {
+                *os << "resampling flag mismatch. sample: "
+                    << motionEvent.isResampled(pointerIndex, mSampleIndex)
+                    << " expected: " << mSample.pointers[pointerIndex].isResampled;
                 return false;
             }
         }
         return true;
     }
 
-    void DescribeTo(std::ostream* os) const { *os << "MotionEvent is resampled."; }
+    void DescribeTo(std::ostream* os) const { *os << "motion event sample properties match."; }
 
-    void DescribeNegationTo(std::ostream* os) const { *os << "MotionEvent is not resampled."; }
+    void DescribeNegationTo(std::ostream* os) const {
+        *os << "motion event sample properties do not match expected properties.";
+    }
+
+private:
+    const size_t mSampleIndex;
+    const Sample mSample;
 };
 
-inline MotionEventIsResampledMatcher MotionEventIsResampled() {
-    return MotionEventIsResampledMatcher();
+inline WithSampleMatcher WithSample(size_t sampleIndex, const Sample& sample) {
+    return WithSampleMatcher(sampleIndex, sample);
 }
+
 } // namespace android
