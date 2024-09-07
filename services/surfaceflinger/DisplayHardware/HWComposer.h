@@ -52,6 +52,7 @@
 #include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayLuts.h>
 #include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
 
 namespace android {
@@ -309,6 +310,11 @@ public:
     virtual status_t setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId, bool enabled) = 0;
     virtual status_t notifyExpectedPresent(PhysicalDisplayId, TimePoint expectedPresentTime,
                                            Fps frameInterval) = 0;
+
+    // Composer 4.0
+    virtual status_t getRequestedLuts(
+            PhysicalDisplayId,
+            std::vector<aidl::android::hardware::graphics::composer3::DisplayLuts::LayerLut>*) = 0;
 };
 
 static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
@@ -471,6 +477,12 @@ public:
     status_t setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId, bool enabled) override;
     status_t notifyExpectedPresent(PhysicalDisplayId, TimePoint expectedPresentTime,
                                    Fps frameInterval) override;
+
+    // Composer 4.0
+    status_t getRequestedLuts(
+            PhysicalDisplayId,
+            std::vector<aidl::android::hardware::graphics::composer3::DisplayLuts::LayerLut>*)
+            override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;

@@ -24,12 +24,14 @@ mod keyboard_classifier;
 
 pub use data_store::{DataStore, DefaultFileReaderWriter};
 pub use input::{
-    DeviceClass, DeviceId, InputDevice, ModifierState, MotionAction, MotionFlags, Source,
+    DeviceClass, DeviceId, InputDevice, KeyboardType, ModifierState, MotionAction, MotionFlags,
+    Source,
 };
 pub use input_verifier::InputVerifier;
 pub use keyboard_classifier::KeyboardClassifier;
 
 #[cxx::bridge(namespace = "android::input")]
+#[allow(clippy::needless_maybe_sized)]
 #[allow(unsafe_op_in_unsafe_fn)]
 mod ffi {
     #[namespace = "android"]
