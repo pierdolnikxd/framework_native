@@ -62,10 +62,8 @@ static void eraseByValue(std::multimap<K, V>& map, const V& value) {
     }
 }
 
-LatencyTracker::LatencyTracker(InputEventTimelineProcessor* processor)
-      : mTimelineProcessor(processor) {
-    LOG_ALWAYS_FATAL_IF(processor == nullptr);
-}
+LatencyTracker::LatencyTracker(InputEventTimelineProcessor& processor)
+      : mTimelineProcessor(&processor) {}
 
 void LatencyTracker::trackListener(int32_t inputEventId, nsecs_t eventTime, nsecs_t readTime,
                                    DeviceId deviceId,

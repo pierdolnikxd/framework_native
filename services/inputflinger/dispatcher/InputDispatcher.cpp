@@ -155,6 +155,10 @@ constexpr std::chrono::milliseconds SLOW_INTERCEPTION_THRESHOLD = 50ms;
 // Number of recent events to keep for debugging purposes.
 constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
 
+// Interval at which we should push the atom gathering input event latencies in
+// LatencyAggregatorWithHistograms
+constexpr nsecs_t LATENCY_STATISTICS_PUSH_INTERVAL = 6 * 3600 * 1000000000LL; // 6 hours
+
 // Event log tags. See EventLogTags.logtags for reference.
 constexpr int LOGTAG_INPUT_INTERACTION = 62000;
 constexpr int LOGTAG_INPUT_FOCUS = 62001;
@@ -944,8 +948,13 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
         mFocusedDisplayId(ui::LogicalDisplayId::DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
         mAwaitedApplicationDisplayId(ui::LogicalDisplayId::INVALID),
-        mLatencyAggregator(),
-        mLatencyTracker(&mLatencyAggregator) {
+        mInputEventTimelineProcessor(
+                input_flags::enable_per_device_input_latency_metrics()
+                        ? std::move(std::unique_ptr<InputEventTimelineProcessor>(
+                                  new LatencyAggregatorWithHistograms()))
+                        : std::move(std::unique_ptr<InputEventTimelineProcessor>(
+                                  new LatencyAggregator()))),
+        mLatencyTracker(*mInputEventTimelineProcessor) {
     mLooper = sp<Looper>::make(false);
     mReporter = createInputReporter();
 
@@ -1016,6 +1025,11 @@ void InputDispatcher::dispatchOnce() {
         // we might have to wake up earlier to check if an app is anr'ing.
         const nsecs_t nextAnrCheck = processAnrsLocked();
         nextWakeupTime = std::min(nextWakeupTime, nextAnrCheck);
+
+        if (input_flags::enable_per_device_input_latency_metrics()) {
+            const nsecs_t nextStatisticsPush = processLatencyStatisticsLocked();
+            nextWakeupTime = std::min(nextWakeupTime, nextStatisticsPush);
+        }
 
         // We are about to enter an infinitely long sleep, because we have no commands or
         // pending or queued events
@@ -1095,6 +1109,21 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     mAnrTracker.eraseToken(connection->getToken());
     onAnrLocked(connection);
     return LLONG_MIN;
+}
+
+/**
+ * Check if enough time has passed since the last latency statistics push.
+ * Return the time at which we should wake up next.
+ */
+nsecs_t InputDispatcher::processLatencyStatisticsLocked() {
+    const nsecs_t currentTime = now();
+    // Log the atom recording latency statistics if more than 6 hours passed from the last
+    // push
+    if (currentTime - mLastStatisticPushTime >= LATENCY_STATISTICS_PUSH_INTERVAL) {
+        mInputEventTimelineProcessor->pushLatencyStatistics();
+        mLastStatisticPushTime = currentTime;
+    }
+    return mLastStatisticPushTime + LATENCY_STATISTICS_PUSH_INTERVAL;
 }
 
 std::chrono::nanoseconds InputDispatcher::getDispatchingTimeoutLocked(
@@ -6055,7 +6084,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     dump += StringPrintf(INDENT2 "KeyRepeatTimeout: %" PRId64 "ms\n",
                          ns2ms(mConfig.keyRepeatTimeout));
     dump += mLatencyTracker.dump(INDENT2);
-    dump += mLatencyAggregator.dump(INDENT2);
+    dump += mInputEventTimelineProcessor->dump(INDENT2);
     dump += INDENT "InputTracer: ";
     dump += mTracer == nullptr ? "Disabled" : "Enabled";
 }
