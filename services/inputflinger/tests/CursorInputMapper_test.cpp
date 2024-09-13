@@ -882,6 +882,51 @@ TEST_F(CursorInputMapperUnitTest, HighResScrollIgnoresRegularScroll) {
                                           WithScroll(0.5f, 0.5f)))));
 }
 
+TEST_F(CursorInputMapperUnitTest, ProcessReversedVerticalScroll) {
+    mReaderConfiguration.mouseReverseVerticalScrollingEnabled = true;
+    createMapper();
+
+    std::list<NotifyArgs> args;
+    args += process(ARBITRARY_TIME, EV_REL, REL_WHEEL, 1);
+    args += process(ARBITRARY_TIME, EV_REL, REL_HWHEEL, 1);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+
+    // Reversed vertical scrolling only affects the y-axis, expect it to be -1.0f to indicate the
+    // inverted scroll direction.
+    EXPECT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
+                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
+                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
+                                          WithScroll(1.0f, -1.0f)))));
+}
+
+TEST_F(CursorInputMapperUnitTest, ProcessHighResReversedVerticalScroll) {
+    mReaderConfiguration.mouseReverseVerticalScrollingEnabled = true;
+    vd_flags::high_resolution_scroll(true);
+    EXPECT_CALL(mMockEventHub, hasRelativeAxis(EVENTHUB_ID, REL_WHEEL_HI_RES))
+            .WillRepeatedly(Return(true));
+    EXPECT_CALL(mMockEventHub, hasRelativeAxis(EVENTHUB_ID, REL_HWHEEL_HI_RES))
+            .WillRepeatedly(Return(true));
+    createMapper();
+
+    std::list<NotifyArgs> args;
+    args += process(ARBITRARY_TIME, EV_REL, REL_WHEEL_HI_RES, 60);
+    args += process(ARBITRARY_TIME, EV_REL, REL_HWHEEL_HI_RES, 60);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+
+    EXPECT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
+                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
+                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
+                                          WithScroll(0.5f, -0.5f)))));
+}
+
 /**
  * When Pointer Capture is enabled, we expect to report unprocessed relative movements, so any
  * pointer acceleration or speed processing should not be applied.
