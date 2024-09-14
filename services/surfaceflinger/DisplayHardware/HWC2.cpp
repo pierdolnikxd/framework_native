@@ -675,6 +675,11 @@ void Display::loadDisplayCapabilities() {
         }
     });
 }
+
+void Display::setPhysicalSizeInMm(std::optional<ui::Size> size) {
+    mPhysicalSize = size;
+}
+
 } // namespace impl
 
 // Layer methods

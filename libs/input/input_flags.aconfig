@@ -185,3 +185,10 @@ flag {
   description: "Collect quality metrics on framework palm rejection."
   bug: "341717757"
 }
+
+flag {
+  name: "enable_touchpad_no_focus_change"
+  namespace: "input"
+  description: "Prevents touchpad gesture changing window focus."
+  bug: "364460018"
+}

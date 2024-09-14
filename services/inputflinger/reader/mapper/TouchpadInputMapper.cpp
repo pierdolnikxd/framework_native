@@ -425,7 +425,7 @@ std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent& rawEvent) {
     std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(rawEvent);
     if (state) {
         if (mTouchpadHardwareStateNotificationsEnabled) {
-            getPolicy()->notifyTouchpadHardwareState(*state, rawEvent.deviceId);
+            getPolicy()->notifyTouchpadHardwareState(*state, getDeviceId());
         }
         updatePalmDetectionMetrics();
         return sendHardwareState(rawEvent.when, rawEvent.readTime, *state);
