@@ -126,6 +126,8 @@ public:
                 (uint32_t, const android::sp<android::GraphicBuffer> &,
                  const android::sp<android::Fence> &),
                 (override));
+    MOCK_METHOD(hal::Error, setBufferSlotsToClear,
+                (const std::vector<uint32_t>& slotsToClear, uint32_t activeBufferSlot), (override));
     MOCK_METHOD(hal::Error, setSurfaceDamage, (const android::Region &), (override));
     MOCK_METHOD(hal::Error, setBlendMode, (hal::BlendMode), (override));
     MOCK_METHOD(hal::Error, setColor, (aidl::android::hardware::graphics::composer3::Color),
