@@ -548,6 +548,7 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
 
 void CursorInputMapper::configureOnChangeMouseSettings(const InputReaderConfiguration& config) {
     mMouseReverseVerticalScrolling = config.mouseReverseVerticalScrollingEnabled;
+    mCursorButtonAccumulator.setSwapLeftRightButtons(config.mouseSwapPrimaryButtonEnabled);
 }
 
 } // namespace android
