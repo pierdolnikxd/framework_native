@@ -59,6 +59,13 @@ public:
                             nsecs_t deliveryTime, nsecs_t consumeTime, nsecs_t finishTime);
     void trackGraphicsLatency(int32_t inputEventId, const sp<IBinder>& connectionToken,
                               std::array<nsecs_t, GraphicsTimeline::SIZE> timeline);
+    /**
+     * trackNotifyMotion and trackNotifyKeys are intermediates between InputDispatcher and
+     * trackListener. They compute the InputDeviceUsageSource set and call trackListener with
+     * the relevant parameters for latency computation.
+     */
+    void trackNotifyMotion(const NotifyMotionArgs& args);
+    void trackNotifyKey(const NotifyKeyArgs& args);
 
     std::string dump(const char* prefix) const;
     void setInputDevices(const std::vector<InputDeviceInfo>& inputDevices);

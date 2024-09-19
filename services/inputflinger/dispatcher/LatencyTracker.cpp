@@ -67,6 +67,26 @@ LatencyTracker::LatencyTracker(InputEventTimelineProcessor* processor)
     LOG_ALWAYS_FATAL_IF(processor == nullptr);
 }
 
+void LatencyTracker::trackNotifyMotion(const NotifyMotionArgs& args) {
+    std::set<InputDeviceUsageSource> sources = getUsageSourcesForMotionArgs(args);
+    trackListener(args.id, args.eventTime, args.readTime, args.deviceId, sources, args.action,
+                  InputEventType::MOTION);
+}
+
+void LatencyTracker::trackNotifyKey(const NotifyKeyArgs& args) {
+    int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NONE;
+    for (auto& inputDevice : mInputDevices) {
+        if (args.deviceId == inputDevice.getId()) {
+            keyboardType = inputDevice.getKeyboardType();
+            break;
+        }
+    }
+    std::set<InputDeviceUsageSource> sources =
+            std::set{getUsageSourceForKeyArgs(keyboardType, args)};
+    trackListener(args.id, args.eventTime, args.readTime, args.deviceId, sources, args.action,
+                  InputEventType::KEY);
+}
+
 void LatencyTracker::trackListener(int32_t inputEventId, nsecs_t eventTime, nsecs_t readTime,
                                    DeviceId deviceId,
                                    const std::set<InputDeviceUsageSource>& sources,

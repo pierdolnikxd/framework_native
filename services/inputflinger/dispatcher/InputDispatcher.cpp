@@ -4511,6 +4511,14 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
             newEntry->traceTracker = mTracer->traceInboundEvent(*newEntry);
         }
 
+        if (input_flags::enable_per_device_input_latency_metrics()) {
+            if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
+                IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
+                !mInputFilterEnabled) {
+                mLatencyTracker.trackNotifyKey(args);
+            }
+        }
+
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
     } // release lock
@@ -4643,9 +4651,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
         if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
             IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
             !mInputFilterEnabled) {
-            std::set<InputDeviceUsageSource> sources = getUsageSourcesForMotionArgs(args);
-            mLatencyTracker.trackListener(args.id, args.eventTime, args.readTime, args.deviceId,
-                                          sources, args.action, InputEventType::MOTION);
+            mLatencyTracker.trackNotifyMotion(args);
         }
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
