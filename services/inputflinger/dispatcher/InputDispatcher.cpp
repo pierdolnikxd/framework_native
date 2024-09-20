@@ -981,7 +981,8 @@ status_t InputDispatcher::start() {
         return ALREADY_EXISTS;
     }
     mThread = std::make_unique<InputThread>(
-            "InputDispatcher", [this]() { dispatchOnce(); }, [this]() { mLooper->wake(); });
+            "InputDispatcher", [this]() { dispatchOnce(); }, [this]() { mLooper->wake(); },
+            /*isInCriticalPath=*/true);
     return OK;
 }
 
