@@ -93,6 +93,9 @@ struct InputReaderConfiguration {
         // The touchpad settings changed.
         TOUCHPAD_SETTINGS = 1u << 13,
 
+        // The key remapping has changed.
+        KEY_REMAPPING = 1u << 14,
+
         // All devices must be reopened.
         MUST_REOPEN = 1u << 31,
     };
@@ -246,6 +249,9 @@ struct InputReaderConfiguration {
     // True if a pointer icon should be shown for direct stylus pointers.
     bool stylusPointerIconEnabled;
 
+    // Keycodes to be remapped.
+    std::map<int32_t /* fromKeyCode */, int32_t /* toKeyCode */> keyRemapping;
+
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
             defaultPointerDisplayId(ui::LogicalDisplayId::DEFAULT),
@@ -332,9 +338,6 @@ public:
     virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode) = 0;
     virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) = 0;
     virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw) = 0;
-
-    virtual void addKeyRemapping(int32_t deviceId, int32_t fromKeyCode,
-                                 int32_t toKeyCode) const = 0;
 
     virtual int32_t getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const = 0;
 
@@ -465,6 +468,9 @@ public:
     /* Sends the hardware state of a connected touchpad */
     virtual void notifyTouchpadHardwareState(const SelfContainedHardwareState& schs,
                                              int32_t deviceId) = 0;
+
+    /* Sends the Info of gestures that happen on the touchpad. */
+    virtual void notifyTouchpadGestureInfo(GestureType type, int32_t deviceId) = 0;
 
     /* Gets the keyboard layout for a particular input device. */
     virtual std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(

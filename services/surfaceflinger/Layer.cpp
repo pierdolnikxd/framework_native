@@ -769,6 +769,10 @@ void Layer::prepareReleaseCallbacks(ftl::Future<FenceResult> futureFenceResult,
         // Older fences for the same layer stack can be dropped when a new fence arrives.
         // An assumption here is that RenderEngine performs work sequentially, so an
         // incoming fence will not fire before an existing fence.
+        SFTRACE_NAME(
+                ftl::Concat("Adding additional fence for: ", ftl::truncated<20>(mName.c_str()),
+                            ", Replacing?: ", mAdditionalPreviousReleaseFences.contains(layerStack))
+                        .c_str());
         mAdditionalPreviousReleaseFences.emplace_or_replace(layerStack,
                                                             std::move(futureFenceResult));
     }

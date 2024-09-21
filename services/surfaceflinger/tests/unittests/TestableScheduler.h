@@ -74,10 +74,8 @@ public:
     void setEventThread(Cycle cycle, std::unique_ptr<EventThread> eventThreadPtr) {
         if (cycle == Cycle::Render) {
             mRenderEventThread = std::move(eventThreadPtr);
-            mRenderEventConnection = mRenderEventThread->createEventConnection();
         } else {
             mLastCompositeEventThread = std::move(eventThreadPtr);
-            mLastCompositeEventConnection = mLastCompositeEventThread->createEventConnection();
         }
     }
 
@@ -133,7 +131,9 @@ public:
     using Scheduler::resyncAllToHardwareVsync;
 
     auto& mutableLayerHistory() { return mLayerHistory; }
-    auto& mutableAttachedChoreographers() { return mAttachedChoreographers; }
+    auto& mutableAttachedChoreographers() NO_THREAD_SAFETY_ANALYSIS {
+        return mAttachedChoreographers;
+    }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
         return mLayerHistory.mActiveLayerInfos.size() + mLayerHistory.mInactiveLayerInfos.size();

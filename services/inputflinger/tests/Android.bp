@@ -123,4 +123,5 @@ cc_test {
         "device-tests",
         "device-platinum-tests",
     ],
+    native_coverage: false,
 }

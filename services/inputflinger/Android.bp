@@ -217,6 +217,7 @@ cc_defaults {
         "libcutils",
         "libinput",
         "liblog",
+        "libprocessgroup",
         "libstatslog",
         "libutils",
     ],

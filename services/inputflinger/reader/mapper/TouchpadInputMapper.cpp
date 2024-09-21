@@ -480,6 +480,9 @@ void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
         return;
     }
     mGesturesToProcess.push_back(*gesture);
+    if (mTouchpadHardwareStateNotificationsEnabled) {
+        getPolicy()->notifyTouchpadGestureInfo(gesture->type, getDeviceId());
+    }
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t readTime) {

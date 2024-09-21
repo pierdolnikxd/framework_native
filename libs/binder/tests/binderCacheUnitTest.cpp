@@ -137,9 +137,9 @@ TEST_F(LibbinderCacheTest, RemoveFromCacheOnServerDeath) {
     ASSERT_EQ(binder1, result);
 
     // Kill the server, this should remove from cache.
-    foo.killServer(binder1);
     pid_t pid;
     ASSERT_EQ(OK, binder1->getDebugPid(&pid));
+    foo.killServer(binder1);
     system(("kill -9 " + std::to_string(pid)).c_str());
 
     sp<IBinder> binder2 = sp<BBinder>::make();

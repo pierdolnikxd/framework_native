@@ -97,6 +97,7 @@ struct PrimeCacheConfig {
     bool cacheImageDimmedLayers = true;
     bool cacheClippedLayers = true;
     bool cacheShadowLayers = true;
+    bool cacheEdgeExtension = true;
     bool cachePIPImageLayers = true;
     bool cacheTransparentImageDimmedLayers = true;
     bool cacheClippedDimmedImageLayers = true;

@@ -305,7 +305,7 @@ DisplayConfiguration::Dpi HWComposer::correctedDpiIfneeded(
     // The logic here checks if hwc was able to provide some dpi, and if so if the dpi
     // disparity between the axes is more reasonable than a rough estimate, otherwise use
     // the estimated dpi as a corrected value.
-    if (estimatedDpi.x == -1 || estimatedDpi.x == -1) {
+    if (estimatedDpi.x == -1 || estimatedDpi.y == -1) {
         return dpi;
     }
     if (dpi.x == -1 || dpi.y == -1) {
