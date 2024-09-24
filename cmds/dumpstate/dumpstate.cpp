@@ -170,6 +170,7 @@ void add_mountinfo();
 #define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
 #define BLK_DEV_SYS_DIR "/sys/block"
 
+#define AFLAGS "/system/bin/aflags"
 #define RECOVERY_DIR "/cache/recovery"
 #define RECOVERY_DATA_DIR "/data/misc/recovery"
 #define UPDATE_ENGINE_LOG_DIR "/data/misc/update_engine_log"
@@ -1792,6 +1793,10 @@ Dumpstate::RunStatus Dumpstate::dumpstate() {
 
     RunCommand("ACONFIG FLAGS", {PRINT_FLAGS},
                CommandOptions::WithTimeout(10).Always().DropRoot().Build());
+    RunCommand("ACONFIG FLAGS DUMP", {AFLAGS, "list"},
+               CommandOptions::WithTimeout(10).Always().AsRootIfAvailable().Build());
+    RunCommand("WHICH ACONFIG FLAG STORAGE", {AFLAGS, "which-backing"},
+               CommandOptions::WithTimeout(10).Always().AsRootIfAvailable().Build());
 
     RunCommand("STORAGED IO INFO", {"storaged", "-u", "-p"});
 
