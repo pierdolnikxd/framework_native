@@ -2111,6 +2111,10 @@ EGLBoolean eglPresentationTimeANDROIDImpl(EGLDisplay dpy, EGLSurface surface,
     }
 
     egl_surface_t const* const s = get_surface(surface);
+    if (!s->getNativeWindow()) {
+        setError(EGL_BAD_SURFACE, EGL_FALSE);
+        return EGL_FALSE;
+    }
     native_window_set_buffers_timestamp(s->getNativeWindow(), time);
 
     return EGL_TRUE;
