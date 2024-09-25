@@ -42,7 +42,7 @@ public:
      * Create a LatencyTracker.
      * param reportingFunction: the function that will be called in order to report full latency.
      */
-    LatencyTracker(InputEventTimelineProcessor* processor);
+    LatencyTracker(InputEventTimelineProcessor& processor);
     /**
      * Start keeping track of an event identified by inputEventId. This must be called first.
      * If duplicate events are encountered (events that have the same eventId), none of them will be
