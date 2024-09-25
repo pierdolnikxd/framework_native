@@ -391,7 +391,7 @@ int32_t KeyboardInputMapper::getMetaState() {
 }
 
 bool KeyboardInputMapper::updateMetaState(int32_t keyCode) {
-    if (!android::isMetaKey(keyCode) || !getDeviceContext().hasKeyCode(keyCode)) {
+    if (!android::isMetaKey(keyCode)) {
         return false;
     }
 

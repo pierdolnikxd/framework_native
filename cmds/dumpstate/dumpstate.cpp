@@ -3538,7 +3538,7 @@ std::future<std::string> Dumpstate::MaybeSnapshotSystemTraceAsync() {
             // the dumpstate's own activity which is irrelevant.
             RunCommand(
                 SERIALIZE_PERFETTO_TRACE_TASK, {"perfetto", "--save-for-bugreport"},
-                CommandOptions::WithTimeout(10).DropRoot().CloseAllFileDescriptorsOnExec().Build(),
+                CommandOptions::WithTimeout(30).DropRoot().CloseAllFileDescriptorsOnExec().Build(),
                 false, outFd);
             // MaybeAddSystemTraceToZip() will take care of copying the trace in the zip
             // file in the later stages.
