@@ -49,8 +49,7 @@ static binder_status_t onTransact(AIBinder*, transaction_code_t, const AParcel*,
     return STATUS_UNKNOWN_TRANSACTION;
 }
 
-static AIBinder_Class* g_class =
-        ::ndk::ICInterface::defineClass("ISomeInterface", onTransact, nullptr, 0);
+static AIBinder_Class* g_class = ::ndk::ICInterface::defineClass("ISomeInterface", onTransact);
 
 class BpSomeInterface : public ::ndk::BpCInterface<ISomeInterface> {
 public:
