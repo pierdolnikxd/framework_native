@@ -2405,7 +2405,7 @@ EGLBoolean eglGetFrameTimestampsANDROIDImpl(EGLDisplay dpy, EGLSurface surface,
         case 0:
             return EGL_TRUE;
         case -ENOENT:
-            return setError(EGL_BAD_ACCESS, (EGLBoolean)EGL_FALSE);
+            return setErrorQuiet(EGL_BAD_ACCESS, (EGLBoolean)EGL_FALSE);
         case -ENOSYS:
             return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
         case -EINVAL:
