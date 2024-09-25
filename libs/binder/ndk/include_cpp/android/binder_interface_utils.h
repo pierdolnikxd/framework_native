@@ -178,6 +178,9 @@ class ICInterface : public SharedRefBase {
                                               AIBinder_Class_onTransact onTransact,
                                               const char** codeToFunction, size_t functionCount);
 
+    static inline AIBinder_Class* defineClass(const char* interfaceDescriptor,
+                                              AIBinder_Class_onTransact onTransact);
+
    private:
     class ICInterfaceData {
        public:
@@ -264,6 +267,12 @@ binder_status_t ICInterface::handleShellCommand(int /*in*/, int /*out*/, int /*e
 
 std::shared_ptr<ICInterface> ICInterface::asInterface(AIBinder* binder) {
     return ICInterfaceData::getInterface(binder);
+}
+
+AIBinder_Class* ICInterface::defineClass(const char* interfaceDescriptor,
+                                         AIBinder_Class_onTransact onTransact) {
+
+    return defineClass(interfaceDescriptor, onTransact, nullptr, 0);
 }
 
 AIBinder_Class* ICInterface::defineClass(const char* interfaceDescriptor,
