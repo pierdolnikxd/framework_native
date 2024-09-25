@@ -841,8 +841,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         return score.overallScore == 0;
     });
 
-    // TODO(b/364651864): Evaluate correctness of primaryRangeIsSingleRate.
-    if (!isVrrDevice() && policy->primaryRangeIsSingleRate()) {
+    if (policy->primaryRangeIsSingleRate()) {
         // If we never scored any layers, then choose the rate from the primary
         // range instead of picking a random score from the app range.
         if (noLayerScore) {
@@ -888,10 +887,10 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         const auto touchRefreshRates = rankFrameRates(anchorGroup, RefreshRateOrder::Descending);
         using fps_approx_ops::operator<;
 
-        if (scores.front().frameRateMode.fps <= touchRefreshRates.front().frameRateMode.fps) {
-            ALOGV("Touch Boost [late]");
+        if (scores.front().frameRateMode.fps < touchRefreshRates.front().frameRateMode.fps) {
+            ALOGV("Touch Boost");
             ATRACE_FORMAT_INSTANT("%s (Touch Boost [late])",
-                                   to_string(touchRefreshRates.front().frameRateMode.fps).c_str());
+                                  to_string(touchRefreshRates.front().frameRateMode.fps).c_str());
             return {touchRefreshRates, GlobalSignals{.touch = true}};
         }
     }
