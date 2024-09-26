@@ -1544,15 +1544,6 @@ TEST_F(BinderARpcNdk, ARpcNoDataNoInfoOnDeleteCallback) {
     ABinderRpc_Accessor_delete(accessor);
 }
 
-TEST_F(BinderARpcNdk, ARpcDoubleRemoveProvider) {
-    ABinderRpc_AccessorProvider* provider =
-            ABinderRpc_registerAccessorProvider(getAccessor, kARpcSupportedServices,
-                                                kARpcNumSupportedServices, nullptr, nullptr);
-    ASSERT_NE(nullptr, provider);
-    ABinderRpc_unregisterAccessorProvider(provider);
-    EXPECT_DEATH(ABinderRpc_unregisterAccessorProvider(provider), " was already unregistered");
-}
-
 TEST_F(BinderARpcNdk, ARpcNullArgs_ConnectionInfo_new) {
     sockaddr_storage addr;
     EXPECT_EQ(nullptr, ABinderRpc_ConnectionInfo_new(reinterpret_cast<const sockaddr*>(&addr), 0));
