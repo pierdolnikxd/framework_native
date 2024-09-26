@@ -250,6 +250,10 @@ LIBBINDER_NDK35 { # introduced=VanillaIceCream
 
 LIBBINDER_NDK36 { # introduced=36
   global:
+    AIBinder_Class_setTransactionCodeToFunctionNameMap;
+    AIBinder_Class_setTransactionCodeToFunctionNameMap; # llndk=202504
+    AIBinder_Class_getFunctionName;
+    AIBinder_Class_getFunctionName; # llndk=202504
     ABinderRpc_registerAccessorProvider; # systemapi
     ABinderRpc_unregisterAccessorProvider; # systemapi
     ABinderRpc_Accessor_new; # systemapi
