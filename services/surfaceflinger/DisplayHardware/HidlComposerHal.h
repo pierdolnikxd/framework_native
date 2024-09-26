@@ -356,7 +356,7 @@ public:
             std::vector<aidl::android::hardware::graphics::composer3::DisplayLuts::LayerLut>*)
             override;
     Error setLayerLuts(Display, Layer,
-                       std::vector<aidl::android::hardware::graphics::composer3::Lut>&) override;
+                       aidl::android::hardware::graphics::composer3::Luts&) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

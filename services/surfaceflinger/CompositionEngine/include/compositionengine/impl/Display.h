@@ -103,6 +103,8 @@ private:
     DisplayId mId;
     bool mIsDisconnected = false;
     Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
+    const aidl::android::hardware::graphics::composer3::OverlayProperties* getOverlaySupport()
+            override;
 };
 
 // This template factory function standardizes the implementation details of the

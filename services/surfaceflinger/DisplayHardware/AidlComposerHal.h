@@ -53,6 +53,7 @@ using aidl::android::hardware::graphics::common::HdrConversionCapability;
 using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::ComposerClientReader;
 using aidl::android::hardware::graphics::composer3::ComposerClientWriter;
+using aidl::android::hardware::graphics::composer3::Luts;
 using aidl::android::hardware::graphics::composer3::OverlayProperties;
 
 class AidlIComposerCallbackWrapper;
@@ -248,9 +249,7 @@ public:
             Display display, std::vector<Layer>* outLayers,
             std::vector<aidl::android::hardware::graphics::composer3::DisplayLuts::LayerLut>*
                     outLuts) override;
-    Error setLayerLuts(
-            Display display, Layer layer,
-            std::vector<aidl::android::hardware::graphics::composer3::Lut>& luts) override;
+    Error setLayerLuts(Display display, Layer layer, Luts& luts) override;
 
 private:
     // Many public functions above simply write a command into the command
