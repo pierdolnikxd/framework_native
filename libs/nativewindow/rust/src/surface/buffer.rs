@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use super::{ErrorCode, Surface};
-use nativewindow_bindgen::ANativeWindow_Buffer;
+use nativewindow_bindgen::{AHardwareBuffer_Format, ANativeWindow_Buffer};
 use std::ptr::null_mut;
 
 /// An empty `ANativeWindow_Buffer`.
@@ -42,5 +42,27 @@ impl<'a> Buffer<'a> {
     /// posting the buffer to the display.
     pub fn unlock_and_post(self) -> Result<(), ErrorCode> {
         self.surface.unlock_and_post()
+    }
+
+    /// The number of pixels that are shown horizontally.
+    pub fn width(&self) -> i32 {
+        self.buffer.width
+    }
+
+    /// The number of pixels that are shown vertically.
+    pub fn height(&self) -> i32 {
+        self.buffer.height
+    }
+
+    /// The number of pixels that a line in the buffer takes in memory.
+    ///
+    /// This may be greater than the width.
+    pub fn stride(&self) -> i32 {
+        self.buffer.stride
+    }
+
+    /// The pixel format of the buffer.
+    pub fn format(&self) -> Result<AHardwareBuffer_Format::Type, ErrorCode> {
+        self.buffer.format.try_into().map_err(|_| ErrorCode(self.buffer.format))
     }
 }
