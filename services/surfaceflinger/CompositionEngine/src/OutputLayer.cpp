@@ -223,7 +223,9 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
     // Some HWCs may clip client composited input to its displayFrame. Make sure
     // that this does not cut off the shadow.
     if (layerState.forceClientComposition && layerState.shadowSettings.length > 0.0f) {
-        const auto outset = layerState.shadowSettings.length;
+        // RenderEngine currently blurs shadows to smooth out edges, so outset by
+        // 2x the length instead of 1x to compensate
+        const auto outset = layerState.shadowSettings.length * 2;
         geomLayerBounds.left -= outset;
         geomLayerBounds.top -= outset;
         geomLayerBounds.right += outset;
