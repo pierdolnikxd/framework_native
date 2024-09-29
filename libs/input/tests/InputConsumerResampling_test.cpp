@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2024 The Android Open Source Project
  *
@@ -193,7 +192,7 @@ void InputConsumerResamplingTest::assertReceivedMotionEvent(
  * last two real events, which would put this time at: 20 ms + (20 ms - 10 ms) / 2 = 25 ms.
  */
 TEST_F(InputConsumerResamplingTest, EventIsResampled) {
-    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // Send the initial ACTION_DOWN separately, so that the first consumed event will only return an
     // InputEvent with a single action.
     mClientTestChannel->enqueueMessage(nextPointerMessage(
             {0ms, {Pointer{.id = 0, .x = 10.0f, .y = 20.0f}}, AMOTION_EVENT_ACTION_DOWN}));
@@ -234,7 +233,7 @@ TEST_F(InputConsumerResamplingTest, EventIsResampled) {
  * have these hardcoded.
  */
 TEST_F(InputConsumerResamplingTest, EventIsResampledWithDifferentId) {
-    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // Send the initial ACTION_DOWN separately, so that the first consumed event will only return an
     // InputEvent with a single action.
     mClientTestChannel->enqueueMessage(nextPointerMessage(
             {0ms, {Pointer{.id = 1, .x = 10.0f, .y = 20.0f}}, AMOTION_EVENT_ACTION_DOWN}));
@@ -274,7 +273,7 @@ TEST_F(InputConsumerResamplingTest, EventIsResampledWithDifferentId) {
  * Stylus pointer coordinates are resampled.
  */
 TEST_F(InputConsumerResamplingTest, StylusEventIsResampled) {
-    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // Send the initial ACTION_DOWN separately, so that the first consumed event will only return an
     // InputEvent with a single action.
     mClientTestChannel->enqueueMessage(nextPointerMessage(
             {0ms,
@@ -332,9 +331,8 @@ TEST_F(InputConsumerResamplingTest, StylusEventIsResampled) {
  * Mouse pointer coordinates are resampled.
  */
 TEST_F(InputConsumerResamplingTest, MouseEventIsResampled) {
-    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // Send the initial ACTION_DOWN separately, so that the first consumed event will only return an
     // InputEvent with a single action.
-
     mClientTestChannel->enqueueMessage(nextPointerMessage(
             {0ms,
              {Pointer{.id = 0, .x = 10.0f, .y = 20.0f, .toolType = ToolType::MOUSE}},
@@ -391,7 +389,7 @@ TEST_F(InputConsumerResamplingTest, MouseEventIsResampled) {
  * Motion events with palm tool type are not resampled.
  */
 TEST_F(InputConsumerResamplingTest, PalmEventIsNotResampled) {
-    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // Send the initial ACTION_DOWN separately, so that the first consumed event will only return an
     // InputEvent with a single action.
     mClientTestChannel->enqueueMessage(nextPointerMessage(
             {0ms,
@@ -425,6 +423,45 @@ TEST_F(InputConsumerResamplingTest, PalmEventIsNotResampled) {
              InputEventEntry{20ms,
                              {Pointer{.id = 0, .x = 30.0f, .y = 30.0f, .toolType = ToolType::PALM}},
                              AMOTION_EVENT_ACTION_MOVE}});
+
+    mClientTestChannel->assertFinishMessage(/*seq=*/1, /*handled=*/true);
+    mClientTestChannel->assertFinishMessage(/*seq=*/2, /*handled=*/true);
+    mClientTestChannel->assertFinishMessage(/*seq=*/3, /*handled=*/true);
+}
+
+/**
+ * Event should not be resampled when sample time is equal to event time.
+ */
+TEST_F(InputConsumerResamplingTest, SampleTimeEqualsEventTime) {
+    // Send the initial ACTION_DOWN separately, so that the first consumed event will only return an
+    // InputEvent with a single action.
+    mClientTestChannel->enqueueMessage(nextPointerMessage(
+            {0ms, {Pointer{.id = 0, .x = 10.0f, .y = 20.0f}}, AMOTION_EVENT_ACTION_DOWN}));
+
+    mClientTestChannel->assertNoSentMessages();
+
+    invokeLooperCallback();
+    assertReceivedMotionEvent({InputEventEntry{0ms,
+                                               {Pointer{.id = 0, .x = 10.0f, .y = 20.0f}},
+                                               AMOTION_EVENT_ACTION_DOWN}});
+
+    // Two ACTION_MOVE events 10 ms apart that move in X direction and stay still in Y
+    mClientTestChannel->enqueueMessage(nextPointerMessage(
+            {10ms, {Pointer{.id = 0, .x = 20.0f, .y = 30.0f}}, AMOTION_EVENT_ACTION_MOVE}));
+    mClientTestChannel->enqueueMessage(nextPointerMessage(
+            {20ms, {Pointer{.id = 0, .x = 30.0f, .y = 30.0f}}, AMOTION_EVENT_ACTION_MOVE}));
+
+    invokeLooperCallback();
+    mConsumer->consumeBatchedInputEvents(nanoseconds{20ms + 5ms /*RESAMPLE_LATENCY*/}.count());
+
+    // MotionEvent should not resampled because the resample time falls exactly on the existing
+    // event time.
+    assertReceivedMotionEvent({InputEventEntry{10ms,
+                                               {Pointer{.id = 0, .x = 20.0f, .y = 30.0f}},
+                                               AMOTION_EVENT_ACTION_MOVE},
+                               InputEventEntry{20ms,
+                                               {Pointer{.id = 0, .x = 30.0f, .y = 30.0f}},
+                                               AMOTION_EVENT_ACTION_MOVE}});
 
     mClientTestChannel->assertFinishMessage(/*seq=*/1, /*handled=*/true);
     mClientTestChannel->assertFinishMessage(/*seq=*/2, /*handled=*/true);
