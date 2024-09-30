@@ -92,7 +92,7 @@ public:
 
     LIBBINDER_EXPORTED status_t appendFrom(const Parcel* parcel, size_t start, size_t len);
 
-    LIBBINDER_EXPORTED int compareData(const Parcel& other);
+    LIBBINDER_EXPORTED int compareData(const Parcel& other) const;
     LIBBINDER_EXPORTED status_t compareDataInRange(size_t thisOffset, const Parcel& other,
                                                    size_t otherOffset, size_t length,
                                                    int* result) const;
