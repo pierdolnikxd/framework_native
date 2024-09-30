@@ -35,10 +35,8 @@ public:
     bool isCallingThread();
 
 private:
-    std::string mName;
     std::function<void()> mThreadWake;
     sp<Thread> mThread;
-    bool applyInputEventProfile();
 };
 
 } // namespace android
