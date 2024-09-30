@@ -45,11 +45,12 @@ private:
 
 } // namespace
 
-InputThread::InputThread(std::string name, std::function<void()> loop, std::function<void()> wake)
+InputThread::InputThread(std::string name, std::function<void()> loop, std::function<void()> wake,
+                         bool isInCriticalPath)
       : mName(name), mThreadWake(wake) {
     mThread = sp<InputThreadImpl>::make(loop);
     mThread->run(mName.c_str(), ANDROID_PRIORITY_URGENT_DISPLAY);
-    if (input_flags::enable_input_policy_profile()) {
+    if (input_flags::enable_input_policy_profile() && isInCriticalPath) {
         if (!applyInputEventProfile()) {
             LOG(ERROR) << "Couldn't apply input policy profile for " << name;
         }
