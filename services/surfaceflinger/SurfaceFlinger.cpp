@@ -952,7 +952,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
                 // Do not wait the future to avoid deadlocks
                 // between main and Perfetto threads (b/313130597)
                 static_cast<void>(mScheduler->schedule(
-                        [&, onLayersSnapshot]() FTL_FAKE_GUARD(mStateLock)
+                        [&, traceFlags, onLayersSnapshot]() FTL_FAKE_GUARD(mStateLock)
                                 FTL_FAKE_GUARD(kMainThreadContext) {
                                     auto snapshot =
                                             takeLayersSnapshotProto(traceFlags, TimePoint::now(),
