@@ -117,14 +117,6 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
         p.setDataPosition(pos);
         FUZZ_LOG() << "setDataPosition done";
     },
-    [] (const ::android::Parcel& p, FuzzedDataProvider& provider) {
-        size_t len = provider.ConsumeIntegralInRange<size_t>(0, 1024);
-        std::vector<uint8_t> bytes = provider.ConsumeBytes<uint8_t>(len);
-        FUZZ_LOG() << "about to setData: " <<(bytes.data() ? HexString(bytes.data(), bytes.size()) : "null");
-        // TODO: allow all read and write operations
-        (*const_cast<::android::Parcel*>(&p)).setData(bytes.data(), bytes.size());
-        FUZZ_LOG() << "setData done";
-    },
     PARCEL_READ_NO_STATUS(size_t, allowFds),
     PARCEL_READ_NO_STATUS(size_t, hasFileDescriptors),
     PARCEL_READ_NO_STATUS(std::vector<android::sp<android::IBinder>>, debugReadAllStrongBinders),
@@ -436,12 +428,6 @@ std::vector<ParcelWrite<::android::Parcel>> BINDER_PARCEL_WRITE_FUNCTIONS {
         p.appendFrom(&p2, start, len);
     },
     [] (::android::Parcel& p, FuzzedDataProvider& provider, android::RandomParcelOptions* /*options*/) {
-        FUZZ_LOG() << "about to call setData";
-        size_t len = provider.ConsumeIntegralInRange<size_t>(0, 1024);
-        std::vector<uint8_t> bytes = provider.ConsumeBytes<uint8_t>(len);
-        p.setData(bytes.data(), bytes.size());
-    },
-    [] (::android::Parcel& p, FuzzedDataProvider& provider, android::RandomParcelOptions* /*options*/) {
         FUZZ_LOG() << "about to call pushAllowFds";
         bool val = provider.ConsumeBool();
         p.pushAllowFds(val);
@@ -512,10 +498,6 @@ std::vector<ParcelWrite<::android::Parcel>> BINDER_PARCEL_WRITE_FUNCTIONS {
     [] (::android::Parcel& p, FuzzedDataProvider& /* provider */, android::RandomParcelOptions* /*options*/) {
         FUZZ_LOG() << "about to call writeNoException";
         p.writeNoException();
-    },
-    [] (::android::Parcel& p, FuzzedDataProvider& /* provider */, android::RandomParcelOptions* /*options*/) {
-        FUZZ_LOG() << "about to call closeFileDescriptors";
-        p.closeFileDescriptors();
     },
     [] (::android::Parcel& p, FuzzedDataProvider& provider, android::RandomParcelOptions* /*options*/) {
         FUZZ_LOG() << "about to call replaceCallingWorkSourceUid";
