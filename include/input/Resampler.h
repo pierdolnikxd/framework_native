@@ -166,6 +166,12 @@ private:
      */
     void overwriteStillPointers(MotionEvent& motionEvent, size_t sampleIndex) const;
 
+    /**
+     * Overwrites the pointer coordinates of a sample with event time older than
+     * that of mPreviousPrediction.
+     */
+    void overwriteOldPointers(MotionEvent& motionEvent, size_t sampleIndex) const;
+
     inline static void addSampleToMotionEvent(const Sample& sample, MotionEvent& motionEvent);
 };
 } // namespace android

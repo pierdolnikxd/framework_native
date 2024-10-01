@@ -271,6 +271,7 @@ void LegacyResampler::overwriteMotionEventSamples(MotionEvent& motionEvent) cons
     const size_t numSamples = motionEvent.getHistorySize() + 1;
     for (size_t sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex) {
         overwriteStillPointers(motionEvent, sampleIndex);
+        overwriteOldPointers(motionEvent, sampleIndex);
     }
 }
 
@@ -283,6 +284,24 @@ void LegacyResampler::overwriteStillPointers(MotionEvent& motionEvent, size_t sa
                     << "Pointer ID: " << motionEvent.getPointerId(pointerIndex)
                     << " did not move. Overwriting its coordinates from " << pointerCoords << " to "
                     << mLastRealSample->pointers[pointerIndex].coords;
+            setMotionEventPointerCoords(motionEvent, sampleIndex, pointerIndex,
+                                        mPreviousPrediction->pointers[pointerIndex].coords);
+        }
+    }
+}
+
+void LegacyResampler::overwriteOldPointers(MotionEvent& motionEvent, size_t sampleIndex) const {
+    if (!mPreviousPrediction.has_value()) {
+        return;
+    }
+    if (nanoseconds{motionEvent.getHistoricalEventTime(sampleIndex)} <
+        mPreviousPrediction->eventTime) {
+        LOG_IF(INFO, debugResampling())
+                << "Motion event sample older than predicted sample. Overwriting event time from "
+                << motionEvent.getHistoricalEventTime(sampleIndex) << "ns to "
+                << mPreviousPrediction->eventTime.count() << "ns.";
+        for (size_t pointerIndex = 0; pointerIndex < motionEvent.getPointerCount();
+             ++pointerIndex) {
             setMotionEventPointerCoords(motionEvent, sampleIndex, pointerIndex,
                                         mPreviousPrediction->pointers[pointerIndex].coords);
         }
