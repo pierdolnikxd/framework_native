@@ -104,6 +104,8 @@ mod proxy;
 mod service;
 #[cfg(not(trusty))]
 mod state;
+#[cfg(not(any(android_vendor, android_vndk)))]
+mod system_only;
 
 use binder_ndk_sys as sys;
 
@@ -120,6 +122,8 @@ pub use service::{
 };
 #[cfg(not(trusty))]
 pub use state::{ProcessState, ThreadState};
+#[cfg(not(any(android_vendor, android_vndk)))]
+pub use system_only::{Accessor, ConnectionInfo};
 
 /// Binder result containing a [`Status`] on error.
 pub type Result<T> = std::result::Result<T, Status>;
@@ -128,9 +132,10 @@ pub type Result<T> = std::result::Result<T, Status>;
 /// without AIDL.
 pub mod binder_impl {
     pub use crate::binder::{
-        IBinderInternal, InterfaceClass, Remotable, Stability, ToAsyncInterface, ToSyncInterface,
-        TransactionCode, TransactionFlags, FIRST_CALL_TRANSACTION, FLAG_CLEAR_BUF, FLAG_ONEWAY,
-        FLAG_PRIVATE_LOCAL, LAST_CALL_TRANSACTION,
+        IBinderInternal, InterfaceClass, LocalStabilityType, Remotable, Stability, StabilityType,
+        ToAsyncInterface, ToSyncInterface, TransactionCode, TransactionFlags, VintfStabilityType,
+        FIRST_CALL_TRANSACTION, FLAG_CLEAR_BUF, FLAG_ONEWAY, FLAG_PRIVATE_LOCAL,
+        LAST_CALL_TRANSACTION,
     };
     pub use crate::binder_async::BinderAsyncRuntime;
     pub use crate::error::status_t;

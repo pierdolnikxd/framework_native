@@ -952,7 +952,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
                 // Do not wait the future to avoid deadlocks
                 // between main and Perfetto threads (b/313130597)
                 static_cast<void>(mScheduler->schedule(
-                        [&, onLayersSnapshot]() FTL_FAKE_GUARD(mStateLock)
+                        [&, traceFlags, onLayersSnapshot]() FTL_FAKE_GUARD(mStateLock)
                                 FTL_FAKE_GUARD(kMainThreadContext) {
                                     auto snapshot =
                                             takeLayersSnapshotProto(traceFlags, TimePoint::now(),
@@ -4723,6 +4723,7 @@ status_t SurfaceFlinger::setTransactionState(
     for (auto& state : states) {
         resolvedStates.emplace_back(std::move(state));
         auto& resolvedState = resolvedStates.back();
+        resolvedState.layerId = LayerHandle::getLayerId(resolvedState.state.surface);
         if (resolvedState.state.hasBufferChanges() && resolvedState.state.hasValidBuffer() &&
             resolvedState.state.surface) {
             sp<Layer> layer = LayerHandle::getLayer(resolvedState.state.surface);
@@ -4734,9 +4735,8 @@ status_t SurfaceFlinger::setTransactionState(
             if (resolvedState.externalTexture) {
                 resolvedState.state.bufferData->buffer = resolvedState.externalTexture->getBuffer();
             }
-            mBufferCountTracker.increment(resolvedState.state.surface->localBinder());
+            mBufferCountTracker.increment(resolvedState.layerId);
         }
-        resolvedState.layerId = LayerHandle::getLayerId(resolvedState.state.surface);
         if (resolvedState.state.what & layer_state_t::eReparent) {
             resolvedState.parentId =
                     getLayerIdFromSurfaceControl(resolvedState.state.parentSurfaceControlForChild);
@@ -5179,7 +5179,7 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, gui::CreateSurface
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();
             if (pendingBufferCounter) {
                 std::string counterName = layer->getPendingBufferCounterName();
-                mBufferCountTracker.add(outResult.handle->localBinder(), counterName,
+                mBufferCountTracker.add(LayerHandle::getLayerId(outResult.handle), counterName,
                                         pendingBufferCounter);
             }
         } break;
@@ -5227,7 +5227,7 @@ status_t SurfaceFlinger::createEffectLayer(const LayerCreationArgs& args, sp<IBi
     return NO_ERROR;
 }
 
-void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32_t layerId) {
+void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer, uint32_t layerId) {
     {
         // Used to remove stalled transactions which uses an internal lock.
         ftl::FakeGuard guard(kMainThreadContext);
@@ -5240,7 +5240,7 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32
 
     Mutex::Autolock stateLock(mStateLock);
     layer->onHandleDestroyed();
-    mBufferCountTracker.remove(handle);
+    mBufferCountTracker.remove(layerId);
     layer.clear();
     setTransactionFlags(eTransactionFlushNeeded | eTransactionNeeded);
 }
