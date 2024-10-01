@@ -683,7 +683,7 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
     return err;
 }
 
-int Parcel::compareData(const Parcel& other) {
+int Parcel::compareData(const Parcel& other) const {
     size_t size = dataSize();
     if (size != other.dataSize()) {
         return size < other.dataSize() ? -1 : 1;
