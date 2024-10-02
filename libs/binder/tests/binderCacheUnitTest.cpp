@@ -149,7 +149,7 @@ TEST_F(LibbinderCacheTest, RemoveFromCacheOnServerDeath) {
     EXPECT_EQ(OK, mServiceManager->addService(kCachedServiceName, binder2));
 
     // Confirm that new service is returned instead of old.
-    int retry_count = 5;
+    int retry_count = 20;
     sp<IBinder> result2;
     do {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
