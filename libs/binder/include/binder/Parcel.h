@@ -172,7 +172,6 @@ public:
 
     LIBBINDER_EXPORTED status_t write(const void* data, size_t len);
     LIBBINDER_EXPORTED void* writeInplace(size_t len);
-    LIBBINDER_EXPORTED status_t writeUnpadded(const void* data, size_t len);
     LIBBINDER_EXPORTED status_t writeInt32(int32_t val);
     LIBBINDER_EXPORTED status_t writeUint32(uint32_t val);
     LIBBINDER_EXPORTED status_t writeInt64(int64_t val);
