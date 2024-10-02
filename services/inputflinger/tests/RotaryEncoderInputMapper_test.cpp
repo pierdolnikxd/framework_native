@@ -103,7 +103,7 @@ protected:
                 .WillRepeatedly(Return(false));
     }
 
-    std::map<const char*, int64_t> mTelemetryLogCounts;
+    std::map<std::string, int64_t> mTelemetryLogCounts;
 
     /**
      * A fake function for telemetry logging.
