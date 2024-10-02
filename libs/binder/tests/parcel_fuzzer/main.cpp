@@ -96,7 +96,7 @@ void doReadFuzz(const char* backend, const std::vector<ParcelRead<P>>& reads,
     RandomParcelOptions options;
 
     P p;
-    fillRandomParcel(&p, std::move(provider), &options);
+    fillRandomParcel(&p, std::move(provider), &options); // consumes provider
 
     // since we are only using a byte to index
     CHECK_LE(reads.size(), 255u) << reads.size();
@@ -120,9 +120,7 @@ template <typename P>
 void doReadWriteFuzz(const char* backend, const std::vector<ParcelRead<P>>& reads,
                      const std::vector<ParcelWrite<P>>& writes, FuzzedDataProvider&& provider) {
     RandomParcelOptions options;
-
     P p;
-    fillRandomParcel(&p, std::move(provider), &options);
 
     // since we are only using a byte to index
     CHECK_LE(reads.size() + writes.size(), 255u) << reads.size();

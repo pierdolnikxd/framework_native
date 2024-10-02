@@ -1030,7 +1030,7 @@ void InputDispatcher::dispatchOnce() {
         const nsecs_t nextAnrCheck = processAnrsLocked();
         nextWakeupTime = std::min(nextWakeupTime, nextAnrCheck);
 
-        if (input_flags::enable_per_device_input_latency_metrics()) {
+        if (mPerDeviceInputLatencyMetricsFlag) {
             const nsecs_t nextStatisticsPush = processLatencyStatisticsLocked();
             nextWakeupTime = std::min(nextWakeupTime, nextStatisticsPush);
         }
@@ -4549,7 +4549,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
             newEntry->traceTracker = mTracer->traceInboundEvent(*newEntry);
         }
 
-        if (input_flags::enable_per_device_input_latency_metrics()) {
+        if (mPerDeviceInputLatencyMetricsFlag) {
             if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
                 IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
                 !mInputFilterEnabled) {
