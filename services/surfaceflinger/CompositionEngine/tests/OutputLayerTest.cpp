@@ -339,7 +339,7 @@ TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame) {
 
     mLayerFEState.geomLayerBounds = FloatRect{100.f, 100.f, 200.f, 200.f};
     Rect expected{mLayerFEState.geomLayerBounds};
-    expected.inset(-kShadowRadius, -kShadowRadius, -kShadowRadius, -kShadowRadius);
+    expected.inset(-2 * kShadowRadius, -2 * kShadowRadius, -2 * kShadowRadius, -2 * kShadowRadius);
     EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
 
