@@ -155,7 +155,7 @@ struct LayerFECompositionState {
     uint32_t geomBufferTransform{0};
     Rect geomBufferSize;
     Rect geomContentCrop;
-    Rect geomCrop;
+    FloatRect geomCrop;
 
     GenericLayerMetadataMap metadata;
 
