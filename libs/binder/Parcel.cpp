@@ -180,7 +180,7 @@ static void acquire_object(const sp<ProcessState>& proc, const flat_binder_objec
         }
     }
 
-    ALOGD("Invalid object type 0x%08x", obj.hdr.type);
+    ALOGE("Invalid object type 0x%08x to acquire", obj.hdr.type);
 }
 
 static void release_object(const sp<ProcessState>& proc, const flat_binder_object& obj,
@@ -210,7 +210,7 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
         }
     }
 
-    ALOGE("Invalid object type 0x%08x", obj.hdr.type);
+    ALOGE("Invalid object type 0x%08x to release", obj.hdr.type);
 }
 #endif // BINDER_WITH_KERNEL_IPC
 
@@ -1849,7 +1849,10 @@ status_t Parcel::validateReadData(size_t upperBound) const
                 if (mDataPos < kernelFields->mObjects[nextObject] + sizeof(flat_binder_object)) {
                     // Requested info overlaps with an object
                     if (!mServiceFuzzing) {
-                        ALOGE("Attempt to read from protected data in Parcel %p", this);
+                        ALOGE("Attempt to read or write from protected data in Parcel %p. pos: "
+                              "%zu, nextObject: %zu, object offset: %llu, object size: %zu",
+                              this, mDataPos, nextObject, kernelFields->mObjects[nextObject],
+                              sizeof(flat_binder_object));
                     }
                     return PERMISSION_DENIED;
                 }
