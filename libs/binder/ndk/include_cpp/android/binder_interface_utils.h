@@ -298,8 +298,7 @@ AIBinder_Class* ICInterface::defineClass(const char* interfaceDescriptor,
 #endif
 
 // TODO(b/368559337): fix versioning on product partition
-// TODO(b/370091328): APEX modules call this function even it is unavailable.
-#if !defined(__ANDROID_APEX__) && !defined(__ANDROID_PRODUCT__) && \
+#if !defined(__ANDROID_PRODUCT__) && \
         (defined(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__) || __ANDROID_API__ >= 36)
     if API_LEVEL_AT_LEAST (36, 202504) {
         if (codeToFunction != nullptr) {
@@ -310,8 +309,7 @@ AIBinder_Class* ICInterface::defineClass(const char* interfaceDescriptor,
 #else
     (void)codeToFunction;
     (void)functionCount;
-#endif  // !defined(__ANDROID_APEX__) && !defined(__ANDROID_PRODUCT__) && \
-//     (defined(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__) || __ANDROID_API__ >= 36)
+#endif  // defined(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__) || __ANDROID_API__ >= 36
     return clazz;
 }
 
