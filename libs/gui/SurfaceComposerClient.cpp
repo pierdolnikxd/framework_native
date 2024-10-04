@@ -1645,6 +1645,11 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMatri
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
         const sp<SurfaceControl>& sc, const Rect& crop) {
+    return setCrop(sc, crop.toFloatRect());
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
+        const sp<SurfaceControl>& sc, const FloatRect& crop) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;

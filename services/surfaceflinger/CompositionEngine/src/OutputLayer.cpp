@@ -24,6 +24,7 @@
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <cstdint>
 #include "system/graphics-base-v1.0.h"
+#include "ui/FloatRect.h"
 
 #include <ui/HdrRenderTypeUtils.h>
 
@@ -185,35 +186,35 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
     const auto& layerState = *getLayerFE().getCompositionState();
     const auto& outputState = getOutput().getState();
 
+    // Convert from layer space to layerStackSpace
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
-    Region activeTransparentRegion = layerState.transparentRegionHint;
     const ui::Transform& layerTransform = layerState.geomLayerTransform;
-    const ui::Transform& inverseLayerTransform = layerState.geomInverseLayerTransform;
-    const Rect& bufferSize = layerState.geomBufferSize;
-    Rect activeCrop = layerState.geomCrop;
-    if (!activeCrop.isEmpty() && bufferSize.isValid()) {
-        activeCrop = layerTransform.transform(activeCrop);
-        if (!activeCrop.intersect(outputState.layerStackSpace.getContent(), &activeCrop)) {
-            activeCrop.clear();
-        }
-        activeCrop = inverseLayerTransform.transform(activeCrop, true);
-        // This needs to be here as transform.transform(Rect) computes the
-        // transformed rect and then takes the bounding box of the result before
-        // returning. This means
-        // transform.inverse().transform(transform.transform(Rect)) != Rect
-        // in which case we need to make sure the final rect is clipped to the
-        // display bounds.
-        if (!activeCrop.intersect(bufferSize, &activeCrop)) {
-            activeCrop.clear();
-        }
+    Region activeTransparentRegion = layerTransform.transform(layerState.transparentRegionHint);
+    if (!layerState.geomCrop.isEmpty() && layerState.geomBufferSize.isValid()) {
+        FloatRect activeCrop = layerTransform.transform(layerState.geomCrop);
+        activeCrop = activeCrop.intersect(outputState.layerStackSpace.getContent().toFloatRect());
+        const FloatRect& bufferSize =
+                layerTransform.transform(layerState.geomBufferSize.toFloatRect());
+        activeCrop = activeCrop.intersect(bufferSize);
+
         // mark regions outside the crop as transparent
-        activeTransparentRegion.orSelf(Rect(0, 0, bufferSize.getWidth(), activeCrop.top));
-        activeTransparentRegion.orSelf(
-                Rect(0, activeCrop.bottom, bufferSize.getWidth(), bufferSize.getHeight()));
-        activeTransparentRegion.orSelf(Rect(0, activeCrop.top, activeCrop.left, activeCrop.bottom));
-        activeTransparentRegion.orSelf(
-                Rect(activeCrop.right, activeCrop.top, bufferSize.getWidth(), activeCrop.bottom));
+        Rect topRegion = Rect(layerTransform.transform(
+                FloatRect(0, 0, layerState.geomBufferSize.getWidth(), layerState.geomCrop.top)));
+        Rect bottomRegion = Rect(layerTransform.transform(
+                FloatRect(0, layerState.geomCrop.bottom, layerState.geomBufferSize.getWidth(),
+                          layerState.geomBufferSize.getHeight())));
+        Rect leftRegion = Rect(layerTransform.transform(FloatRect(0, layerState.geomCrop.top,
+                                                                 layerState.geomCrop.left,
+                                                                 layerState.geomCrop.bottom)));
+        Rect rightRegion = Rect(layerTransform.transform(
+                FloatRect(layerState.geomCrop.right, layerState.geomCrop.top,
+                          layerState.geomBufferSize.getWidth(), layerState.geomCrop.bottom)));
+
+        activeTransparentRegion.orSelf(topRegion);
+        activeTransparentRegion.orSelf(bottomRegion);
+        activeTransparentRegion.orSelf(leftRegion);
+        activeTransparentRegion.orSelf(rightRegion);
     }
 
     // reduce uses a FloatRect to provide more accuracy during the
@@ -231,13 +232,14 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
         geomLayerBounds.right += outset;
         geomLayerBounds.bottom += outset;
     }
-    Rect frame{layerTransform.transform(reduce(geomLayerBounds, activeTransparentRegion))};
-    if (!frame.intersect(outputState.layerStackSpace.getContent(), &frame)) {
-        frame.clear();
-    }
-    const ui::Transform displayTransform{outputState.transform};
 
-    return displayTransform.transform(frame);
+    geomLayerBounds = layerTransform.transform(geomLayerBounds);
+    FloatRect frame = reduce(geomLayerBounds, activeTransparentRegion);
+    frame = frame.intersect(outputState.layerStackSpace.getContent().toFloatRect());
+
+    // convert from layerStackSpace to displaySpace
+    const ui::Transform displayTransform{outputState.transform};
+    return Rect(displayTransform.transform(frame));
 }
 
 uint32_t OutputLayer::calculateOutputRelativeBufferTransform(
