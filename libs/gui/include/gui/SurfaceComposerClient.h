@@ -549,6 +549,7 @@ public:
         Transaction& setMatrix(const sp<SurfaceControl>& sc,
                 float dsdx, float dtdx, float dtdy, float dsdy);
         Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setCrop(const sp<SurfaceControl>& sc, const FloatRect& crop);
         Transaction& setCornerRadius(const sp<SurfaceControl>& sc, float cornerRadius);
         Transaction& setBackgroundBlurRadius(const sp<SurfaceControl>& sc,
                                              int backgroundBlurRadius);

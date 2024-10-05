@@ -5741,7 +5741,7 @@ void SurfaceFlinger::dumpHdrInfo(std::string& result) const {
 
 void SurfaceFlinger::dumpFrontEnd(std::string& result) {
     std::ostringstream out;
-    out << "\nComposition list\n";
+    out << "\nComposition list (bottom to top)\n";
     ui::LayerStack lastPrintedLayerStackHeader = ui::INVALID_LAYER_STACK;
     for (const auto& snapshot : mLayerSnapshotBuilder.getSnapshots()) {
         if (lastPrintedLayerStackHeader != snapshot->outputFilter.layerStack) {
@@ -5769,7 +5769,7 @@ void SurfaceFlinger::dumpFrontEnd(std::string& result) {
 
 void SurfaceFlinger::dumpVisibleFrontEnd(std::string& result) {
     std::ostringstream out;
-    out << "\nComposition list\n";
+    out << "\nComposition list (bottom to top)\n";
     ui::LayerStack lastPrintedLayerStackHeader = ui::INVALID_LAYER_STACK;
     mLayerSnapshotBuilder.forEachVisibleSnapshot(
             [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
