@@ -1547,7 +1547,8 @@ Error AidlComposer::getClientTargetProperty(
     return error;
 }
 
-Error AidlComposer::getRequestedLuts(Display display, std::vector<DisplayLuts::LayerLut>* outLuts) {
+Error AidlComposer::getRequestedLuts(Display display, std::vector<Layer>* outLayers,
+                                     std::vector<DisplayLuts::LayerLut>* outLuts) {
     Error error = Error::NONE;
     mMutex.lock_shared();
     if (auto reader = getReader(display)) {
@@ -1556,6 +1557,11 @@ Error AidlComposer::getRequestedLuts(Display display, std::vector<DisplayLuts::L
         error = Error::BAD_DISPLAY;
     }
     mMutex.unlock_shared();
+
+    outLayers->reserve(outLuts->size());
+    for (const auto& layerLut : *outLuts) {
+        outLayers->emplace_back(translate<Layer>(layerLut.layer));
+    }
     return error;
 }
 

@@ -602,6 +602,11 @@ public:
         Transaction& setExtendedRangeBrightness(const sp<SurfaceControl>& sc,
                                                 float currentBufferRatio, float desiredRatio);
         Transaction& setDesiredHdrHeadroom(const sp<SurfaceControl>& sc, float desiredRatio);
+        Transaction& setLuts(const sp<SurfaceControl>& sc, const base::unique_fd& lutFd,
+                             const std::vector<int32_t>& offsets,
+                             const std::vector<int32_t>& dimensions,
+                             const std::vector<int32_t>& sizes,
+                             const std::vector<int32_t>& samplingKeys);
         Transaction& setCachingHint(const sp<SurfaceControl>& sc, gui::CachingHint cachingHint);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
         Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
