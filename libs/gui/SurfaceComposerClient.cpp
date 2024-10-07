@@ -1939,6 +1939,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesir
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLuts(
+        const sp<SurfaceControl>& sc, const base::unique_fd& /*lutFd*/,
+        const std::vector<int32_t>& /*offsets*/, const std::vector<int32_t>& /*dimensions*/,
+        const std::vector<int32_t>& /*sizes*/, const std::vector<int32_t>& /*samplingKeys*/) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    // TODO (b/329472856): update layer_state_t for lut(s)
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCachingHint(
         const sp<SurfaceControl>& sc, gui::CachingHint cachingHint) {
     layer_state_t* s = getLayerState(sc);
