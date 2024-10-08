@@ -43,6 +43,9 @@ using std::chrono::nanoseconds;
 using ::testing::AllOf;
 using ::testing::Matcher;
 
+constexpr auto ACTION_DOWN = AMOTION_EVENT_ACTION_DOWN;
+constexpr auto ACTION_MOVE = AMOTION_EVENT_ACTION_MOVE;
+
 struct Pointer {
     int32_t id{0};
     ToolType toolType{ToolType::FINGER};
@@ -80,10 +83,19 @@ protected:
         --mOnBatchedInputEventPendingInvocationCount;
     }
 
-    void assertReceivedMotionEvent(const Matcher<MotionEvent>& matcher) {
-        std::unique_ptr<MotionEvent> motionEvent = mMotionEvents.pop();
-        ASSERT_NE(motionEvent, nullptr);
+    std::unique_ptr<MotionEvent> assertReceivedMotionEvent(const Matcher<MotionEvent>& matcher) {
+        if (mMotionEvents.empty()) {
+            ADD_FAILURE() << "No motion events received";
+            return nullptr;
+        }
+        std::unique_ptr<MotionEvent> motionEvent = std::move(mMotionEvents.front());
+        mMotionEvents.pop();
+        if (motionEvent == nullptr) {
+            ADD_FAILURE() << "The consumed motion event should never be null";
+            return nullptr;
+        }
         EXPECT_THAT(*motionEvent, matcher);
+        return motionEvent;
     }
 
     InputMessage nextPointerMessage(std::chrono::nanoseconds eventTime, DeviceId deviceId,
@@ -93,12 +105,12 @@ protected:
     sp<Looper> mLooper;
     std::unique_ptr<InputConsumerNoResampling> mConsumer;
 
-    BlockingQueue<std::unique_ptr<KeyEvent>> mKeyEvents;
-    BlockingQueue<std::unique_ptr<MotionEvent>> mMotionEvents;
-    BlockingQueue<std::unique_ptr<FocusEvent>> mFocusEvents;
-    BlockingQueue<std::unique_ptr<CaptureEvent>> mCaptureEvents;
-    BlockingQueue<std::unique_ptr<DragEvent>> mDragEvents;
-    BlockingQueue<std::unique_ptr<TouchModeEvent>> mTouchModeEvents;
+    std::queue<std::unique_ptr<KeyEvent>> mKeyEvents;
+    std::queue<std::unique_ptr<MotionEvent>> mMotionEvents;
+    std::queue<std::unique_ptr<FocusEvent>> mFocusEvents;
+    std::queue<std::unique_ptr<CaptureEvent>> mCaptureEvents;
+    std::queue<std::unique_ptr<DragEvent>> mDragEvents;
+    std::queue<std::unique_ptr<TouchModeEvent>> mTouchModeEvents;
 
 private:
     uint32_t mLastSeq{0};
@@ -153,15 +165,15 @@ InputMessage InputConsumerTest::nextPointerMessage(std::chrono::nanoseconds even
 TEST_F(InputConsumerTest, MessageStreamBatchedInMotionEvent) {
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/0}
                                                .eventTime(nanoseconds{0ms}.count())
-                                               .action(AMOTION_EVENT_ACTION_DOWN)
+                                               .action(ACTION_DOWN)
                                                .build());
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/1}
                                                .eventTime(nanoseconds{5ms}.count())
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/2}
                                                .eventTime(nanoseconds{10ms}.count())
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
 
     mClientTestChannel->assertNoSentMessages();
@@ -172,10 +184,10 @@ TEST_F(InputConsumerTest, MessageStreamBatchedInMotionEvent) {
 
     mConsumer->consumeBatchedInputEvents(/*frameTime=*/std::nullopt);
 
-    std::unique_ptr<MotionEvent> downMotionEvent = mMotionEvents.pop();
-    ASSERT_NE(downMotionEvent, nullptr);
+    assertReceivedMotionEvent(WithMotionAction(ACTION_DOWN));
 
-    std::unique_ptr<MotionEvent> moveMotionEvent = mMotionEvents.pop();
+    std::unique_ptr<MotionEvent> moveMotionEvent =
+            assertReceivedMotionEvent(WithMotionAction(ACTION_MOVE));
     ASSERT_NE(moveMotionEvent, nullptr);
     EXPECT_EQ(moveMotionEvent->getHistorySize() + 1, 3UL);
 
@@ -187,19 +199,19 @@ TEST_F(InputConsumerTest, MessageStreamBatchedInMotionEvent) {
 TEST_F(InputConsumerTest, LastBatchedSampleIsLessThanResampleTime) {
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/0}
                                                .eventTime(nanoseconds{0ms}.count())
-                                               .action(AMOTION_EVENT_ACTION_DOWN)
+                                               .action(ACTION_DOWN)
                                                .build());
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/1}
                                                .eventTime(nanoseconds{5ms}.count())
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/2}
                                                .eventTime(nanoseconds{10ms}.count())
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/3}
                                                .eventTime(nanoseconds{15ms}.count())
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
 
     mClientTestChannel->assertNoSentMessages();
@@ -210,10 +222,10 @@ TEST_F(InputConsumerTest, LastBatchedSampleIsLessThanResampleTime) {
 
     mConsumer->consumeBatchedInputEvents(16'000'000 /*ns*/);
 
-    std::unique_ptr<MotionEvent> downMotionEvent = mMotionEvents.pop();
-    ASSERT_NE(downMotionEvent, nullptr);
+    assertReceivedMotionEvent(WithMotionAction(ACTION_DOWN));
 
-    std::unique_ptr<MotionEvent> moveMotionEvent = mMotionEvents.pop();
+    std::unique_ptr<MotionEvent> moveMotionEvent =
+            assertReceivedMotionEvent(WithMotionAction(ACTION_MOVE));
     ASSERT_NE(moveMotionEvent, nullptr);
     const size_t numSamples = moveMotionEvent->getHistorySize() + 1;
     EXPECT_LT(moveMotionEvent->getHistoricalEventTime(numSamples - 2),
@@ -234,32 +246,32 @@ TEST_F(InputConsumerTest, LastBatchedSampleIsLessThanResampleTime) {
 TEST_F(InputConsumerTest, BatchedEventsMultiDeviceConsumption) {
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/0}
                                                .deviceId(0)
-                                               .action(AMOTION_EVENT_ACTION_DOWN)
+                                               .action(ACTION_DOWN)
                                                .build());
 
     invokeLooperCallback();
-    assertReceivedMotionEvent(AllOf(WithDeviceId(0), WithMotionAction(AMOTION_EVENT_ACTION_DOWN)));
+    assertReceivedMotionEvent(AllOf(WithDeviceId(0), WithMotionAction(ACTION_DOWN)));
 
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/1}
                                                .deviceId(0)
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/2}
                                                .deviceId(0)
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/3}
                                                .deviceId(0)
-                                               .action(AMOTION_EVENT_ACTION_MOVE)
+                                               .action(ACTION_MOVE)
                                                .build());
 
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/4}
                                                .deviceId(1)
-                                               .action(AMOTION_EVENT_ACTION_DOWN)
+                                               .action(ACTION_DOWN)
                                                .build());
 
     invokeLooperCallback();
-    assertReceivedMotionEvent(AllOf(WithDeviceId(1), WithMotionAction(AMOTION_EVENT_ACTION_DOWN)));
+    assertReceivedMotionEvent(AllOf(WithDeviceId(1), WithMotionAction(ACTION_DOWN)));
 
     mClientTestChannel->enqueueMessage(InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/5}
                                                .deviceId(0)
@@ -267,7 +279,7 @@ TEST_F(InputConsumerTest, BatchedEventsMultiDeviceConsumption) {
                                                .build());
 
     invokeLooperCallback();
-    assertReceivedMotionEvent(AllOf(WithDeviceId(0), WithMotionAction(AMOTION_EVENT_ACTION_MOVE)));
+    assertReceivedMotionEvent(AllOf(WithDeviceId(0), WithMotionAction(ACTION_MOVE)));
 
     mClientTestChannel->assertFinishMessage(/*seq=*/0, /*handled=*/true);
     mClientTestChannel->assertFinishMessage(/*seq=*/4, /*handled=*/true);
@@ -303,60 +315,52 @@ TEST_F(InputConsumerTest, BatchedEventsMultiDeviceConsumption) {
  * The first field is device ID, and the second field is event time.
  */
 TEST_F(InputConsumerTest, MultiDeviceResampling) {
-    mClientTestChannel->enqueueMessage(nextPointerMessage(0ms, /*deviceId=*/0,
-                                                          AMOTION_EVENT_ACTION_DOWN,
-                                                          Pointer{.x = 0, .y = 0}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(0ms, /*deviceId=*/0, ACTION_DOWN, Pointer{.x = 0, .y = 0}));
 
     mClientTestChannel->assertNoSentMessages();
 
     invokeLooperCallback();
-    assertReceivedMotionEvent(AllOf(WithDeviceId(0), WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                                    WithSampleCount(1)));
+    assertReceivedMotionEvent(
+            AllOf(WithDeviceId(0), WithMotionAction(ACTION_DOWN), WithSampleCount(1)));
 
-    mClientTestChannel->enqueueMessage(nextPointerMessage(5ms, /*deviceId=*/0,
-                                                          AMOTION_EVENT_ACTION_MOVE,
-                                                          Pointer{.x = 1.0f, .y = 2.0f}));
-    mClientTestChannel->enqueueMessage(nextPointerMessage(10ms, /*deviceId=*/0,
-                                                          AMOTION_EVENT_ACTION_MOVE,
-                                                          Pointer{.x = 2.0f, .y = 4.0f}));
-    mClientTestChannel->enqueueMessage(nextPointerMessage(15ms, /*deviceId=*/1,
-                                                          AMOTION_EVENT_ACTION_DOWN,
-                                                          Pointer{.x = 10.0f, .y = 10.0f}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(5ms, /*deviceId=*/0, ACTION_MOVE, Pointer{.x = 1.0f, .y = 2.0f}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(10ms, /*deviceId=*/0, ACTION_MOVE, Pointer{.x = 2.0f, .y = 4.0f}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(15ms, /*deviceId=*/1, ACTION_DOWN, Pointer{.x = 10.0f, .y = 10.0f}));
 
     invokeLooperCallback();
     mConsumer->consumeBatchedInputEvents(16'000'000 /*ns*/);
 
-    assertReceivedMotionEvent(AllOf(WithDeviceId(1), WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                                    WithSampleCount(1)));
     assertReceivedMotionEvent(
-            AllOf(WithDeviceId(0), WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithSampleCount(3),
+            AllOf(WithDeviceId(1), WithMotionAction(ACTION_DOWN), WithSampleCount(1)));
+    assertReceivedMotionEvent(
+            AllOf(WithDeviceId(0), WithMotionAction(ACTION_MOVE), WithSampleCount(3),
                   WithSample(/*sampleIndex=*/2,
                              Sample{11ms,
                                     {PointerArgs{.x = 2.2f, .y = 4.4f, .isResampled = true}}})));
 
-    mClientTestChannel->enqueueMessage(nextPointerMessage(20ms, /*deviceId=*/1,
-                                                          AMOTION_EVENT_ACTION_MOVE,
-                                                          Pointer{.x = 11.0f, .y = 12.0f}));
-    mClientTestChannel->enqueueMessage(nextPointerMessage(25ms, /*deviceId=*/1,
-                                                          AMOTION_EVENT_ACTION_MOVE,
-                                                          Pointer{.x = 12.0f, .y = 14.0f}));
-    mClientTestChannel->enqueueMessage(nextPointerMessage(30ms, /*deviceId=*/0,
-                                                          AMOTION_EVENT_ACTION_MOVE,
-                                                          Pointer{.x = 5.0f, .y = 6.0f}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(20ms, /*deviceId=*/1, ACTION_MOVE, Pointer{.x = 11.0f, .y = 12.0f}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(25ms, /*deviceId=*/1, ACTION_MOVE, Pointer{.x = 12.0f, .y = 14.0f}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(30ms, /*deviceId=*/0, ACTION_MOVE, Pointer{.x = 5.0f, .y = 6.0f}));
 
     invokeLooperCallback();
     assertOnBatchedInputEventPendingWasCalled();
     mConsumer->consumeBatchedInputEvents(32'000'000 /*ns*/);
 
     assertReceivedMotionEvent(
-            AllOf(WithDeviceId(1), WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithSampleCount(3),
+            AllOf(WithDeviceId(1), WithMotionAction(ACTION_MOVE), WithSampleCount(3),
                   WithSample(/*sampleIndex=*/2,
                              Sample{27ms,
                                     {PointerArgs{.x = 12.4f, .y = 14.8f, .isResampled = true}}})));
 
-    mClientTestChannel->enqueueMessage(nextPointerMessage(35ms, /*deviceId=*/0,
-                                                          AMOTION_EVENT_ACTION_MOVE,
-                                                          Pointer{.x = 8.0f, .y = 9.0f}));
+    mClientTestChannel->enqueueMessage(
+            nextPointerMessage(35ms, /*deviceId=*/0, ACTION_MOVE, Pointer{.x = 8.0f, .y = 9.0f}));
     mClientTestChannel->enqueueMessage(nextPointerMessage(40ms, /*deviceId=*/1,
                                                           AMOTION_EVENT_ACTION_UP,
                                                           Pointer{.x = 12.0f, .y = 14.0f}));
@@ -371,7 +375,7 @@ TEST_F(InputConsumerTest, MultiDeviceResampling) {
             AllOf(WithDeviceId(1), WithMotionAction(AMOTION_EVENT_ACTION_UP), WithSampleCount(1)));
 
     assertReceivedMotionEvent(
-            AllOf(WithDeviceId(0), WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithSampleCount(3),
+            AllOf(WithDeviceId(0), WithMotionAction(ACTION_MOVE), WithSampleCount(3),
                   WithSample(/*sampleIndex=*/2,
                              Sample{37'500'000ns,
                                     {PointerArgs{.x = 9.5f, .y = 10.5f, .isResampled = true}}})));
