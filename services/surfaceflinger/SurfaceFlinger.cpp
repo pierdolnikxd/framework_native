@@ -3284,8 +3284,6 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
         // getTotalSize returns the total number of buffers that were allocated by SurfaceFlinger
         SFTRACE_INT64("Total Buffer Size", GraphicBufferAllocator::get().getTotalSize());
     }
-
-    logFrameStats(presentTime);
 }
 
 void SurfaceFlinger::commitTransactions() {

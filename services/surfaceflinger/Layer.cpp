@@ -183,7 +183,6 @@ Layer::~Layer() {
     mFlinger->mTimeStats->onDestroy(layerId);
     mFlinger->mFrameTracer->onDestroy(layerId);
 
-    mFrameTracker.logAndResetStats(mName);
     mFlinger->onLayerDestroyed(this);
 
     if (mDrawingState.sidebandStream != nullptr) {
@@ -603,10 +602,6 @@ void Layer::dumpFrameStats(std::string& result) const {
 
 void Layer::clearFrameStats() {
     mFrameTracker.clearStats();
-}
-
-void Layer::logFrameStats() {
-    mFrameTracker.logAndResetStats(mName);
 }
 
 void Layer::getFrameStats(FrameStats* outStats) const {
