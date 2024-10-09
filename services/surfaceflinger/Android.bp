@@ -278,7 +278,7 @@ cc_binary {
         "libSurfaceFlingerProp",
     ],
 
-    logtags: ["EventLog/EventLogTags.logtags"],
+    logtags: ["surfaceflinger.logtags"],
 }
 
 subdirs = [
