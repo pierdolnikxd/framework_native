@@ -3284,8 +3284,6 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
         // getTotalSize returns the total number of buffers that were allocated by SurfaceFlinger
         SFTRACE_INT64("Total Buffer Size", GraphicBufferAllocator::get().getTotalSize());
     }
-
-    logFrameStats(presentTime);
 }
 
 void SurfaceFlinger::commitTransactions() {
@@ -5197,6 +5195,7 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, gui::CreateSurface
                 std::string counterName = layer->getPendingBufferCounterName();
                 mBufferCountTracker.add(LayerHandle::getLayerId(outResult.handle), counterName,
                                         pendingBufferCounter);
+                args.pendingBuffers = pendingBufferCounter;
             }
         } break;
         default:
