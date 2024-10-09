@@ -659,6 +659,19 @@ void EventHub::Device::populateAbsoluteAxisStates() {
 }
 
 bool EventHub::Device::hasKeycodeLocked(int keycode) const {
+    if (hasKeycodeInternalLocked(keycode)) {
+        return true;
+    }
+
+    for (auto& fromKey : getKeyCharacterMap()->findKeyCodesMappedToKeyCode(keycode)) {
+        if (hasKeycodeInternalLocked(fromKey)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool EventHub::Device::hasKeycodeInternalLocked(int keycode) const {
     if (!keyMap.haveKeyLayout()) {
         return false;
     }
@@ -676,7 +689,6 @@ bool EventHub::Device::hasKeycodeLocked(int keycode) const {
     if (usageCodes.size() > 0 && mscBitmask.test(MSC_SCAN)) {
         return true;
     }
-
     return false;
 }
 
