@@ -648,8 +648,8 @@ public:
     LIBBINDER_EXPORTED void print(std::ostream& to, uint32_t flags = 0) const;
 
 private:
-    // Explicitly close all file descriptors in the parcel.
-    void closeFileDescriptors();
+    // Close all file descriptors in the parcel at object positions >= newObjectsSize.
+    void closeFileDescriptors(size_t newObjectsSize);
 
     // `objects` and `objectsSize` always 0 for RPC Parcels.
     typedef void (*release_func)(const uint8_t* data, size_t dataSize, const binder_size_t* objects,
