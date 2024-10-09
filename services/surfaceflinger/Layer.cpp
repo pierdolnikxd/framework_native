@@ -1347,7 +1347,7 @@ Rect Layer::computeBufferCrop(const State& s) {
 }
 
 void Layer::decrementPendingBufferCount() {
-    int32_t pendingBuffers = --mPendingBufferTransactions;
+    int32_t pendingBuffers = --mPendingBuffers;
     tracePendingBufferCount(pendingBuffers);
 }
 
