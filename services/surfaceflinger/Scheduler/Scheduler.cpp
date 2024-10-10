@@ -426,6 +426,8 @@ void Scheduler::onHdcpLevelsChanged(Cycle cycle, PhysicalDisplayId displayId,
     eventThreadFor(cycle).onHdcpLevelsChanged(displayId, connectedLevel, maxLevel);
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value" // b/369277774
 bool Scheduler::onDisplayModeChanged(PhysicalDisplayId displayId, const FrameRateMode& mode) {
     const bool isPacesetter =
             FTL_FAKE_GUARD(kMainThreadContext,
@@ -446,6 +448,7 @@ bool Scheduler::onDisplayModeChanged(PhysicalDisplayId displayId, const FrameRat
 
     return isPacesetter;
 }
+#pragma clang diagnostic pop
 
 void Scheduler::emitModeChangeIfNeeded() {
     if (!mPolicy.modeOpt || !mPolicy.emittedModeOpt) {
