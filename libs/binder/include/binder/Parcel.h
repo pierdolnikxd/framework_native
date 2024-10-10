@@ -1239,7 +1239,7 @@ private:
             if (__builtin_mul_overflow(size, sizeof(T), &dataLen)) {
                 return -EOVERFLOW;
             }
-            auto data = reinterpret_cast<const T*>(readInplace(dataLen));
+            auto data = readInplace(dataLen);
             if (data == nullptr) return BAD_VALUE;
             // std::vector::insert and similar methods will require type-dependent
             // byte alignment when inserting from a const iterator such as `data`,
