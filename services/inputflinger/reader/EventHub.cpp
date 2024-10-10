@@ -662,8 +662,12 @@ bool EventHub::Device::hasKeycodeLocked(int keycode) const {
     if (hasKeycodeInternalLocked(keycode)) {
         return true;
     }
-
-    for (auto& fromKey : getKeyCharacterMap()->findKeyCodesMappedToKeyCode(keycode)) {
+    // Check the key character map first. Not all input devices will have one.
+    const std::shared_ptr<KeyCharacterMap> kcm = getKeyCharacterMap();
+    if (kcm == nullptr) {
+        return false;
+    }
+    for (auto& fromKey : kcm->findKeyCodesMappedToKeyCode(keycode)) {
         if (hasKeycodeInternalLocked(fromKey)) {
             return true;
         }
