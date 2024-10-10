@@ -96,6 +96,9 @@ struct InputReaderConfiguration {
         // The key remapping has changed.
         KEY_REMAPPING = 1u << 14,
 
+        // The mouse settings changed, this includes mouse reverse vertical scrolling.
+        MOUSE_SETTINGS = 1u << 15,
+
         // All devices must be reopened.
         MUST_REOPEN = 1u << 31,
     };
@@ -252,6 +255,10 @@ struct InputReaderConfiguration {
     // Keycodes to be remapped.
     std::map<int32_t /* fromKeyCode */, int32_t /* toKeyCode */> keyRemapping;
 
+    // True if the external mouse should have its vertical scrolling reversed, so that rotating the
+    // wheel downwards scrolls the content upwards.
+    bool mouseReverseVerticalScrollingEnabled;
+
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
             defaultPointerDisplayId(ui::LogicalDisplayId::DEFAULT),
@@ -282,7 +289,8 @@ struct InputReaderConfiguration {
             shouldNotifyTouchpadHardwareState(false),
             touchpadRightClickZoneEnabled(false),
             stylusButtonMotionEventsEnabled(true),
-            stylusPointerIconEnabled(false) {}
+            stylusPointerIconEnabled(false),
+            mouseReverseVerticalScrollingEnabled(false) {}
 
     std::optional<DisplayViewport> getDisplayViewportByType(ViewportType type) const;
     std::optional<DisplayViewport> getDisplayViewportByUniqueId(const std::string& uniqueDisplayId)
