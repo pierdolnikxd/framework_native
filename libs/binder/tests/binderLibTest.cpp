@@ -2261,7 +2261,7 @@ public:
                 if (ret != NO_ERROR) {
                     return ret;
                 }
-                auto event = frozenStateChangeCallback->events.popWithTimeout(10ms);
+                auto event = frozenStateChangeCallback->events.popWithTimeout(1000ms);
                 if (!event.has_value()) {
                     return NOT_ENOUGH_DATA;
                 }
