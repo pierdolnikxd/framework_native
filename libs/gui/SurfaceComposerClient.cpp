@@ -1971,9 +1971,13 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLuts(
         return *this;
     }
 
-    s->luts = std::make_shared<gui::DisplayLuts>(base::unique_fd(dup(lutFd.get())), offsets,
-                                                 dimensions, sizes, samplingKeys);
     s->what |= layer_state_t::eLutsChanged;
+    if (lutFd.ok()) {
+        s->luts = std::make_shared<gui::DisplayLuts>(base::unique_fd(dup(lutFd.get())), offsets,
+                                                     dimensions, sizes, samplingKeys);
+    } else {
+        s->luts = nullptr;
+    }
 
     registerSurfaceControlForCallback(sc);
     return *this;

@@ -203,6 +203,12 @@ status_t layer_state_t::write(Parcel& output) const
         SAFE_PARCEL(output.writeParcelable, *bufferReleaseChannel);
     }
 
+    const bool hasLuts = (luts != nullptr);
+    SAFE_PARCEL(output.writeBool, hasLuts);
+    if (hasLuts) {
+        SAFE_PARCEL(output.writeParcelable, *luts);
+    }
+
     return NO_ERROR;
 }
 
@@ -356,6 +362,15 @@ status_t layer_state_t::read(const Parcel& input)
     if (hasBufferReleaseChannel) {
         bufferReleaseChannel = std::make_shared<gui::BufferReleaseChannel::ProducerEndpoint>();
         SAFE_PARCEL(input.readParcelable, bufferReleaseChannel.get());
+    }
+
+    bool hasLuts;
+    SAFE_PARCEL(input.readBool, &hasLuts);
+    if (hasLuts) {
+        luts = std::make_shared<gui::DisplayLuts>();
+        SAFE_PARCEL(input.readParcelable, luts.get());
+    } else {
+        luts = nullptr;
     }
 
     return NO_ERROR;
