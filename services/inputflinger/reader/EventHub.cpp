@@ -662,7 +662,9 @@ bool EventHub::Device::hasKeycodeLocked(int keycode) const {
     if (hasKeycodeInternalLocked(keycode)) {
         return true;
     }
-
+    if (!keyMap.haveKeyCharacterMap()) {
+        return false;
+    }
     for (auto& fromKey : getKeyCharacterMap()->findKeyCodesMappedToKeyCode(keycode)) {
         if (hasKeycodeInternalLocked(fromKey)) {
             return true;
