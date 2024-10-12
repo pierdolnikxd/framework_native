@@ -112,6 +112,9 @@ protected:
     std::queue<std::unique_ptr<DragEvent>> mDragEvents;
     std::queue<std::unique_ptr<TouchModeEvent>> mTouchModeEvents;
 
+    // Whether or not to automatically call "finish" whenever a motion event is received.
+    bool mShouldFinishMotions{true};
+
 private:
     uint32_t mLastSeq{0};
     size_t mOnBatchedInputEventPendingInvocationCount{0};
@@ -119,11 +122,13 @@ private:
     // InputConsumerCallbacks interface
     void onKeyEvent(std::unique_ptr<KeyEvent> event, uint32_t seq) override {
         mKeyEvents.push(std::move(event));
-        mConsumer->finishInputEvent(seq, true);
+        mConsumer->finishInputEvent(seq, /*handled=*/true);
     }
     void onMotionEvent(std::unique_ptr<MotionEvent> event, uint32_t seq) override {
         mMotionEvents.push(std::move(event));
-        mConsumer->finishInputEvent(seq, true);
+        if (mShouldFinishMotions) {
+            mConsumer->finishInputEvent(seq, /*handled=*/true);
+        }
     }
     void onBatchedInputEventPending(int32_t pendingBatchSource) override {
         if (!mConsumer->probablyHasInput()) {
@@ -133,19 +138,19 @@ private:
     };
     void onFocusEvent(std::unique_ptr<FocusEvent> event, uint32_t seq) override {
         mFocusEvents.push(std::move(event));
-        mConsumer->finishInputEvent(seq, true);
+        mConsumer->finishInputEvent(seq, /*handled=*/true);
     };
     void onCaptureEvent(std::unique_ptr<CaptureEvent> event, uint32_t seq) override {
         mCaptureEvents.push(std::move(event));
-        mConsumer->finishInputEvent(seq, true);
+        mConsumer->finishInputEvent(seq, /*handled=*/true);
     };
     void onDragEvent(std::unique_ptr<DragEvent> event, uint32_t seq) override {
         mDragEvents.push(std::move(event));
-        mConsumer->finishInputEvent(seq, true);
+        mConsumer->finishInputEvent(seq, /*handled=*/true);
     }
     void onTouchModeEvent(std::unique_ptr<TouchModeEvent> event, uint32_t seq) override {
         mTouchModeEvents.push(std::move(event));
-        mConsumer->finishInputEvent(seq, true);
+        mConsumer->finishInputEvent(seq, /*handled=*/true);
     };
 };
 
@@ -231,16 +236,58 @@ TEST_F(InputConsumerTest, LastBatchedSampleIsLessThanResampleTime) {
     EXPECT_LT(moveMotionEvent->getHistoricalEventTime(numSamples - 2),
               moveMotionEvent->getEventTime());
 
-    // Consume all remaining events before ending the test. Otherwise, the smart pointer that owns
-    // consumer is set to null before destroying consumer. This leads to a member function call on a
-    // null object.
-    // TODO(b/332613662): Remove this workaround.
-    mConsumer->consumeBatchedInputEvents(std::nullopt);
+    mClientTestChannel->assertFinishMessage(/*seq=*/0, /*handled=*/true);
+    mClientTestChannel->assertFinishMessage(/*seq=*/1, /*handled=*/true);
+    mClientTestChannel->assertFinishMessage(/*seq=*/2, /*handled=*/true);
+    // The event with seq=3 remains unconsumed, and therefore finish will not be called for it until
+    // after the consumer is destroyed.
+    mConsumer.reset();
+    mClientTestChannel->assertFinishMessage(/*seq=*/3, /*handled=*/false);
+    mClientTestChannel->assertNoSentMessages();
+}
 
-    mClientTestChannel->assertFinishMessage(/*seq=*/0, true);
-    mClientTestChannel->assertFinishMessage(/*seq=*/1, true);
-    mClientTestChannel->assertFinishMessage(/*seq=*/2, true);
-    mClientTestChannel->assertFinishMessage(/*seq=*/3, true);
+/**
+ * During normal operation, the user of InputConsumer (callbacks) is expected to call "finish"
+ * for each input event received in InputConsumerCallbacks.
+ * If the InputConsumer is destroyed, the events that were already sent to the callbacks will not
+ * be finished automatically.
+ */
+TEST_F(InputConsumerTest, UnhandledEventsNotFinishedInDestructor) {
+    mClientTestChannel->enqueueMessage(
+            InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/0}.action(ACTION_DOWN).build());
+    mClientTestChannel->enqueueMessage(
+            InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/1}.action(ACTION_MOVE).build());
+    mShouldFinishMotions = false;
+    invokeLooperCallback();
+    assertOnBatchedInputEventPendingWasCalled();
+    assertReceivedMotionEvent(WithMotionAction(ACTION_DOWN));
+    mClientTestChannel->assertNoSentMessages();
+    // The "finishInputEvent" was not called by the InputConsumerCallbacks.
+    // Now, destroy the consumer and check that the "finish" was not called automatically for the
+    // DOWN event, but was called for the undelivered MOVE event.
+    mConsumer.reset();
+    mClientTestChannel->assertFinishMessage(/*seq=*/1, /*handled=*/false);
+    mClientTestChannel->assertNoSentMessages();
+}
+
+/**
+ * Send an event to the InputConsumer, but do not invoke "consumeBatchedInputEvents", thus leaving
+ * the input event unconsumed by the callbacks. Ensure that no crash occurs when the consumer is
+ * destroyed.
+ * This test is similar to the one above, but here we are calling "finish"
+ * automatically for any event received in the callbacks.
+ */
+TEST_F(InputConsumerTest, UnconsumedEventDoesNotCauseACrash) {
+    mClientTestChannel->enqueueMessage(
+            InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/0}.action(ACTION_DOWN).build());
+    invokeLooperCallback();
+    assertReceivedMotionEvent(WithMotionAction(ACTION_DOWN));
+    mClientTestChannel->assertFinishMessage(/*seq=*/0, /*handled=*/true);
+    mClientTestChannel->enqueueMessage(
+            InputMessageBuilder{InputMessage::Type::MOTION, /*seq=*/1}.action(ACTION_MOVE).build());
+    invokeLooperCallback();
+    mConsumer.reset();
+    mClientTestChannel->assertFinishMessage(/*seq=*/1, /*handled=*/false);
 }
 
 TEST_F(InputConsumerTest, BatchedEventsMultiDeviceConsumption) {
