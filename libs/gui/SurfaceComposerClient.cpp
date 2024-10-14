@@ -2807,6 +2807,7 @@ void SurfaceComposerClient::getDynamicDisplayInfoInternal(gui::DynamicDisplayInf
     outInfo->autoLowLatencyModeSupported = ginfo.autoLowLatencyModeSupported;
     outInfo->gameContentTypeSupported = ginfo.gameContentTypeSupported;
     outInfo->preferredBootDisplayMode = ginfo.preferredBootDisplayMode;
+    outInfo->hasArrSupport = ginfo.hasArrSupport;
 }
 
 status_t SurfaceComposerClient::getDynamicDisplayInfoFromId(int64_t displayId,
