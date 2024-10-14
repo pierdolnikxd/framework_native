@@ -486,6 +486,8 @@ void Scheduler::setDuration(Cycle cycle, std::chrono::nanoseconds workDuration,
     }
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value" // b/369277774
 void Scheduler::updatePhaseConfiguration(PhysicalDisplayId displayId, Fps refreshRate) {
     const bool isPacesetter =
             FTL_FAKE_GUARD(kMainThreadContext,
@@ -497,6 +499,7 @@ void Scheduler::updatePhaseConfiguration(PhysicalDisplayId displayId, Fps refres
     setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()),
                    refreshRate.getPeriod());
 }
+#pragma clang diagnostic pop
 
 void Scheduler::setActiveDisplayPowerModeForRefreshRateStats(hal::PowerMode powerMode) {
     mRefreshRateStats->setPowerMode(powerMode);
