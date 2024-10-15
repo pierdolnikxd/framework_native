@@ -915,6 +915,8 @@ void Scheduler::dumpVsync(std::string& out) const {
     }
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value" // b/369277774
 void Scheduler::updateFrameRateOverrides(GlobalSignals consideredSignals, Fps displayRefreshRate) {
     const bool changed = (std::scoped_lock(mPolicyLock),
                           updateFrameRateOverridesLocked(consideredSignals, displayRefreshRate));
@@ -923,6 +925,7 @@ void Scheduler::updateFrameRateOverrides(GlobalSignals consideredSignals, Fps di
         onFrameRateOverridesChanged();
     }
 }
+#pragma clang diagnostic pop
 
 bool Scheduler::updateFrameRateOverridesLocked(GlobalSignals consideredSignals,
                                                Fps displayRefreshRate) {
