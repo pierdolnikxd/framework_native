@@ -132,7 +132,9 @@ std::optional<KeyboardLayoutInfo> KeyboardInputMapper::getKeyboardLayoutInfo() c
 void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
-    info.setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
+    if (const auto kcm = getDeviceContext().getKeyCharacterMap(); kcm != nullptr) {
+        info.setKeyCharacterMap(std::make_unique<KeyCharacterMap>(*kcm));
+    }
 
     std::optional keyboardLayoutInfo = getKeyboardLayoutInfo();
     if (keyboardLayoutInfo) {
