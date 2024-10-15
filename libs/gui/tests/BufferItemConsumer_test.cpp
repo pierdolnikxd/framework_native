@@ -28,6 +28,7 @@ static constexpr int kWidth = 100;
 static constexpr int kHeight = 100;
 static constexpr int kMaxLockedBuffers = 3;
 static constexpr int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+static constexpr int kUsage = GRALLOC_USAGE_SW_READ_RARELY;
 static constexpr int kFrameSleepUs = 30 * 1000;
 
 class BufferItemConsumerTest : public ::testing::Test {
@@ -44,8 +45,7 @@ class BufferItemConsumerTest : public ::testing::Test {
 
     void SetUp() override {
         BufferQueue::createBufferQueue(&mProducer, &mConsumer);
-        mBIC =
-            new BufferItemConsumer(mConsumer, kFormat, kMaxLockedBuffers, true);
+        mBIC = new BufferItemConsumer(mConsumer, kUsage, kMaxLockedBuffers, true);
         String8 name("BufferItemConsumer_Under_Test");
         mBIC->setName(name);
         mBFL = new BufferFreedListener(this);
