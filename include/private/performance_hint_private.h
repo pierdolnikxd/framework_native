@@ -108,6 +108,12 @@ int APerformanceHint_getThreadIds(APerformanceHintSession* session,
 APerformanceHintSession* APerformanceHint_createSessionInternal(APerformanceHintManager* manager,
                                         const int32_t* threadIds, size_t size,
                                         int64_t initialTargetWorkDurationNanos, SessionTag tag);
+/**
+ * Creates a session using ASessionCreationConfig
+ */
+APerformanceHintSession* APerformanceHint_createSessionUsingConfigInternal(
+        APerformanceHintManager* manager, ASessionCreationConfig* sessionCreationConfig,
+        SessionTag tag);
 
 /**
  * Creates a session from the Java SDK implementation
@@ -137,6 +143,10 @@ void APerformanceHint_getRateLimiterPropertiesForTesting(
  */
 void APerformanceHint_setUseNewLoadHintBehaviorForTesting(bool newBehavior);
 
+/*
+ * Forces the graphics pipeline flag to be enabled or disabled, for testing only.
+ */
+void APerformanceHint_setUseGraphicsPipelineForTesting(bool enabled);
 
 __END_DECLS
 
