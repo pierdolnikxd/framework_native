@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <iomanip>
 #include <ostream>
 
 #include <android-base/logging.h>
@@ -37,6 +38,11 @@ const bool IS_DEBUGGABLE_BUILD =
         true;
 #endif
 
+/**
+ * Log debug messages about timestamp and coordinates of event resampling.
+ * Enable this via "adb shell setprop log.tag.LegacyResamplerResampling DEBUG"
+ * (requires restart)
+ */
 bool debugResampling() {
     if (!IS_DEBUGGABLE_BUILD) {
         static const bool DEBUG_TRANSPORT_RESAMPLING =
@@ -164,7 +170,9 @@ bool LegacyResampler::canInterpolate(const InputMessage& message) const {
 
     const nanoseconds delta = futureSample.eventTime - pastSample.eventTime;
     if (delta < RESAMPLE_MIN_DELTA) {
-        LOG_IF(INFO, debugResampling()) << "Not resampled. Delta is too small: " << delta << "ns.";
+        LOG_IF(INFO, debugResampling())
+                << "Not resampled. Delta is too small: " << std::setprecision(3)
+                << std::chrono::duration<double, std::milli>{delta}.count() << "ms";
         return false;
     }
     return true;
@@ -183,7 +191,7 @@ std::optional<LegacyResampler::Sample> LegacyResampler::attemptInterpolation(
 
     const nanoseconds delta = nanoseconds{futureSample.eventTime} - pastSample.eventTime;
     const float alpha =
-            std::chrono::duration<float, std::milli>(resampleTime - pastSample.eventTime) / delta;
+            std::chrono::duration<float, std::nano>(resampleTime - pastSample.eventTime) / delta;
 
     PointerMap resampledPointerMap;
     for (const Pointer& pointer : pastSample.pointerMap) {
@@ -213,10 +221,14 @@ bool LegacyResampler::canExtrapolate() const {
 
     const nanoseconds delta = presentSample.eventTime - pastSample.eventTime;
     if (delta < RESAMPLE_MIN_DELTA) {
-        LOG_IF(INFO, debugResampling()) << "Not resampled. Delta is too small: " << delta << "ns.";
+        LOG_IF(INFO, debugResampling())
+                << "Not resampled. Delta is too small: " << std::setprecision(3)
+                << std::chrono::duration<double, std::milli>{delta}.count() << "ms";
         return false;
     } else if (delta > RESAMPLE_MAX_DELTA) {
-        LOG_IF(INFO, debugResampling()) << "Not resampled. Delta is too large: " << delta << "ns.";
+        LOG_IF(INFO, debugResampling())
+                << "Not resampled. Delta is too large: " << std::setprecision(3)
+                << std::chrono::duration<double, std::milli>{delta}.count() << "ms";
         return false;
     }
     return true;
@@ -242,11 +254,16 @@ std::optional<LegacyResampler::Sample> LegacyResampler::attemptExtrapolation(
             (resampleTime > farthestPrediction) ? (farthestPrediction) : (resampleTime);
     LOG_IF(INFO, debugResampling() && newResampleTime == farthestPrediction)
             << "Resample time is too far in the future. Adjusting prediction from "
-            << (resampleTime - presentSample.eventTime) << " to "
-            << (farthestPrediction - presentSample.eventTime) << "ns.";
+            << std::setprecision(3)
+            << std::chrono::duration<double, std::milli>{resampleTime - presentSample.eventTime}
+                       .count()
+            << "ms to "
+            << std::chrono::duration<double, std::milli>{farthestPrediction -
+                                                         presentSample.eventTime}
+                       .count()
+            << "ms";
     const float alpha =
-            std::chrono::duration<float, std::milli>(newResampleTime - pastSample.eventTime) /
-            delta;
+            std::chrono::duration<float, std::nano>(newResampleTime - pastSample.eventTime) / delta;
 
     PointerMap resampledPointerMap;
     for (const Pointer& pointer : presentSample.pointerMap) {
@@ -321,8 +338,14 @@ void LegacyResampler::overwriteOldPointers(MotionEvent& motionEvent, size_t samp
         mPreviousPrediction->eventTime) {
         LOG_IF(INFO, debugResampling())
                 << "Motion event sample older than predicted sample. Overwriting event time from "
-                << motionEvent.getHistoricalEventTime(sampleIndex) << "ns to "
-                << mPreviousPrediction->eventTime.count() << "ns.";
+                << std::setprecision(3)
+                << std::chrono::duration<double,
+                                         std::milli>{nanoseconds{motionEvent.getHistoricalEventTime(
+                                                             sampleIndex)}}
+                           .count()
+                << "ms to "
+                << std::chrono::duration<double, std::milli>{mPreviousPrediction->eventTime}.count()
+                << "ms";
         for (size_t pointerIndex = 0; pointerIndex < motionEvent.getPointerCount();
              ++pointerIndex) {
             const std::optional<Pointer> previousPointer = mPreviousPrediction->pointerMap.find(
