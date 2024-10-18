@@ -4,6 +4,14 @@ package: "com.android.graphics.surfaceflinger.flags"
 container: "system"
 
 flag {
+  name: "adpf_fmq_sf"
+  namespace: "game"
+  description: "Guards use of the ADPF FMQ system specifically for SurfaceFlinger"
+  bug: "315894228"
+  is_fixed_read_only: true
+} # adpf_fmq_sf
+
+flag {
   name: "adpf_gpu_sf"
   namespace: "game"
   description: "Guards use of the sending ADPF GPU duration hint and load hints from SurfaceFlinger to Power HAL"
