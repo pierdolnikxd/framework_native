@@ -39,10 +39,14 @@ static const char* kStaticCachableList[] = {
         "account",
         "activity",
         "alarm",
+        "android.frameworks.stats.IStats/default",
         "android.system.keystore2.IKeystoreService/default",
         "appops",
         "audio",
+        "autofill",
+        "batteryproperties",
         "batterystats",
+        "biometic",
         "carrier_config",
         "connectivity",
         "content",
@@ -58,6 +62,7 @@ static const char* kStaticCachableList[] = {
         "jobscheduler",
         "legacy_permission",
         "location",
+        "lock_settings",
         "media.extractor",
         "media.metrics",
         "media.player",
@@ -78,15 +83,19 @@ static const char* kStaticCachableList[] = {
         "phone",
         "platform_compat",
         "power",
+        "processinfo",
         "role",
+        "sensitive_content_protection_service",
         "sensorservice",
         "statscompanion",
         "telephony.registry",
         "thermalservice",
         "time_detector",
+        "tracing.proxy",
         "trust",
         "uimode",
         "user",
+        "vibrator",
         "virtualdevice",
         "virtualdevice_native",
         "webviewupdate",
@@ -114,11 +123,30 @@ binder::Status BackendUnifiedServiceManager::updateCache(const std::string& serv
     if (!kUseCache) {
         return binder::Status::ok();
     }
+    std::string traceStr;
+    if (atrace_is_tag_enabled(ATRACE_TAG_AIDL)) {
+        traceStr = "BinderCacheWithInvalidation::updateCache : " + serviceName;
+    }
+    binder::ScopedTrace aidlTrace(ATRACE_TAG_AIDL, traceStr.c_str());
+
     if (service.getTag() == os::Service::Tag::binder) {
         sp<IBinder> binder = service.get<os::Service::Tag::binder>();
-        if (binder && mCacheForGetService->isClientSideCachingEnabled(serviceName) &&
-            binder->isBinderAlive()) {
+        if (!binder) {
+            binder::ScopedTrace
+                    aidlTrace(ATRACE_TAG_AIDL,
+                              "BinderCacheWithInvalidation::updateCache failed: binder_null");
+        } else if (!binder->isBinderAlive()) {
+            binder::ScopedTrace aidlTrace(ATRACE_TAG_AIDL,
+                                          "BinderCacheWithInvalidation::updateCache failed: "
+                                          "isBinderAlive_false");
+        } else if (mCacheForGetService->isClientSideCachingEnabled(serviceName)) {
+            binder::ScopedTrace aidlTrace(ATRACE_TAG_AIDL,
+                                          "BinderCacheWithInvalidation::updateCache successful");
             return mCacheForGetService->setItem(serviceName, binder);
+        } else {
+            binder::ScopedTrace aidlTrace(ATRACE_TAG_AIDL,
+                                          "BinderCacheWithInvalidation::updateCache failed: "
+                                          "caching_not_enabled");
         }
     }
     return binder::Status::ok();
