@@ -242,6 +242,8 @@ public:
         sp<Fence> mFence;
         uint32_t mTransform{0};
         ui::Dataspace mDataspace{ui::Dataspace::UNKNOWN};
+        std::chrono::steady_clock::time_point mTimeSinceDataspaceUpdate =
+                std::chrono::steady_clock::time_point::min();
         Rect mCrop;
         PixelFormat mPixelFormat{PIXEL_FORMAT_NONE};
         bool mTransformToDisplayInverse{false};
