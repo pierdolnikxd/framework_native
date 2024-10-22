@@ -83,6 +83,7 @@
 #include <renderengine/RenderEngine.h>
 #include <renderengine/impl/ExternalTexture.h>
 #include <scheduler/FrameTargeter.h>
+#include <statslog_surfaceflinger.h>
 #include <sys/types.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
@@ -3142,6 +3143,19 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
         haveNewListeners = mAddingHDRLayerInfoListener; // grab this with state lock
         mAddingHDRLayerInfoListener = false;
     }
+
+    for (const auto& layerEvent : mLayerEvents) {
+        auto result =
+                stats::stats_write(stats::SURFACE_CONTROL_EVENT,
+                                   static_cast<int32_t>(layerEvent.uid),
+                                   static_cast<int64_t>(layerEvent.timeSinceLastEvent.count()),
+                                   static_cast<int32_t>(layerEvent.dataspace));
+        if (result < 0) {
+            ALOGW("Failed to report layer event with error: %d", result);
+        }
+    }
+
+    mLayerEvents.clear();
 
     if (haveNewListeners || mHdrLayerInfoChanged) {
         for (auto& [compositionDisplay, listener] : hdrInfoListeners) {

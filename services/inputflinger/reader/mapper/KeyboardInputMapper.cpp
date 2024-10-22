@@ -243,11 +243,16 @@ std::list<NotifyArgs> KeyboardInputMapper::process(const RawEvent& rawEvent) {
     mHidUsageAccumulator.process(rawEvent);
     switch (rawEvent.type) {
         case EV_KEY: {
-            int32_t scanCode = rawEvent.code;
+            // Skip processing repeated keys (value == 2) since auto repeat is handled by Android
+            // internally.
+            if (rawEvent.value == 2) {
+                break;
+            }
 
+            const int32_t scanCode = rawEvent.code;
             if (isSupportedScanCode(scanCode)) {
-                out += processKey(rawEvent.when, rawEvent.readTime, rawEvent.value != 0,
-                                  scanCode, mHidUsageAccumulator.consumeCurrentHidUsage());
+                out += processKey(rawEvent.when, rawEvent.readTime, rawEvent.value != 0, scanCode,
+                                  mHidUsageAccumulator.consumeCurrentHidUsage());
             }
             break;
         }

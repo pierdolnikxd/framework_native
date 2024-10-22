@@ -185,6 +185,14 @@ Layer::~Layer() {
 
     mFlinger->onLayerDestroyed(this);
 
+    const auto currentTime = std::chrono::steady_clock::now();
+    if (mBufferInfo.mTimeSinceDataspaceUpdate > std::chrono::steady_clock::time_point::min()) {
+        mFlinger->mLayerEvents.emplace_back(mOwnerUid, getSequence(), mBufferInfo.mDataspace,
+                                            std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                    currentTime -
+                                                    mBufferInfo.mTimeSinceDataspaceUpdate));
+    }
+
     if (mDrawingState.sidebandStream != nullptr) {
         mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
     }
@@ -1261,8 +1269,17 @@ void Layer::gatherBufferInfo() {
             }
         }
     }
-    if (lastDataspace != mBufferInfo.mDataspace) {
+    if (lastDataspace != mBufferInfo.mDataspace ||
+        mBufferInfo.mTimeSinceDataspaceUpdate == std::chrono::steady_clock::time_point::min()) {
         mFlinger->mHdrLayerInfoChanged = true;
+        const auto currentTime = std::chrono::steady_clock::now();
+        if (mBufferInfo.mTimeSinceDataspaceUpdate > std::chrono::steady_clock::time_point::min()) {
+            mFlinger->mLayerEvents
+                    .emplace_back(mOwnerUid, getSequence(), lastDataspace,
+                                  std::chrono::duration_cast<std::chrono::milliseconds>(
+                                          currentTime - mBufferInfo.mTimeSinceDataspaceUpdate));
+        }
+        mBufferInfo.mTimeSinceDataspaceUpdate = currentTime;
     }
     if (mBufferInfo.mDesiredHdrSdrRatio != mDrawingState.desiredHdrSdrRatio) {
         mBufferInfo.mDesiredHdrSdrRatio = mDrawingState.desiredHdrSdrRatio;
