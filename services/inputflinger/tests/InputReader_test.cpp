@@ -1392,6 +1392,20 @@ TEST_F(InputReaderTest, LightGetColor) {
     ASSERT_EQ(mReader->getLightColor(deviceId, /*lightId=*/1), LIGHT_BRIGHTNESS);
 }
 
+TEST_F(InputReaderTest, SetPowerWakeUp) {
+    ASSERT_NO_FATAL_FAILURE(addDevice(1, "1st", InputDeviceClass::KEYBOARD, nullptr));
+    ASSERT_NO_FATAL_FAILURE(addDevice(2, "2nd", InputDeviceClass::KEYBOARD, nullptr));
+    ASSERT_NO_FATAL_FAILURE(addDevice(3, "3rd", InputDeviceClass::KEYBOARD, nullptr));
+
+    ASSERT_EQ(mFakeEventHub->fakeReadKernelWakeup(1), false);
+
+    ASSERT_TRUE(mFakeEventHub->setKernelWakeEnabled(2, true));
+    ASSERT_EQ(mFakeEventHub->fakeReadKernelWakeup(2), true);
+
+    ASSERT_TRUE(mFakeEventHub->setKernelWakeEnabled(3, false));
+    ASSERT_EQ(mFakeEventHub->fakeReadKernelWakeup(3), false);
+}
+
 // --- InputReaderIntegrationTest ---
 
 // These tests create and interact with the InputReader only through its interface.

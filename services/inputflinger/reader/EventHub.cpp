@@ -2848,6 +2848,35 @@ void EventHub::requestReopenDevices() {
     mNeedToReopenDevices = true;
 }
 
+bool EventHub::setKernelWakeEnabled(int32_t deviceId, bool enabled) {
+    std::scoped_lock _l(mLock);
+    std::string enabledStr = enabled ? "enabled" : "disabled";
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr) {
+        ALOGE("Device Id %d does not exist for setting power wakeup", deviceId);
+        return false;
+    }
+    if (device->associatedDevice == nullptr) {
+        return false;
+    }
+    std::filesystem::path currentPath = device->associatedDevice->sysfsRootPath;
+    while (!currentPath.empty() && currentPath != "/") {
+        std::string nodePath = currentPath / "power/wakeup";
+        if (std::filesystem::exists(nodePath)) {
+            if (base::WriteStringToFile(enabledStr, nodePath)) {
+                return true;
+
+            }
+            // No need to continue searching in parent directories as power/wakeup nodes
+            // higher up may control other subdevices.
+            ALOGW("Failed to set power/wakeup node at %s", nodePath.c_str());
+            return false;
+        }
+        currentPath = currentPath.parent_path();
+    }
+    return false;
+}
+
 void EventHub::dump(std::string& dump) const {
     dump += "Event Hub State:\n";
 
