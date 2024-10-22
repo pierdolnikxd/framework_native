@@ -426,6 +426,16 @@ public:
 
     /* Notifies that mouse cursor faded due to typing. */
     virtual void notifyMouseCursorFadedOnTyping() = 0;
+
+    /* Set whether the given input device can wake up the kernel from sleep
+     * when it generates input events. By default, usually only internal (built-in)
+     * input devices can wake the kernel from sleep. For an external input device
+     * that supports remote wakeup to be able to wake the kernel, this must be called
+     * after each time the device is connected/added.
+     *
+     * Returns true if setting power wakeup was successful.
+     */
+    virtual bool setKernelWakeEnabled(int32_t deviceId, bool enabled) = 0;
 };
 
 // --- TouchAffineTransformation ---
