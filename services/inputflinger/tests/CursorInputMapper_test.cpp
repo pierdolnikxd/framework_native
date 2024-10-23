@@ -25,8 +25,10 @@
 #include <android-base/logging.h>
 #include <android_companion_virtualdevice_flags.h>
 #include <com_android_input_flags.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <input/DisplayViewport.h>
+#include <input/InputEventLabels.h>
 #include <linux/input-event-codes.h>
 #include <linux/input.h>
 #include <utils/Timers.h>
@@ -52,6 +54,8 @@ constexpr auto BUTTON_PRESS = AMOTION_EVENT_ACTION_BUTTON_PRESS;
 constexpr auto BUTTON_RELEASE = AMOTION_EVENT_ACTION_BUTTON_RELEASE;
 constexpr auto HOVER_MOVE = AMOTION_EVENT_ACTION_HOVER_MOVE;
 constexpr auto INVALID_CURSOR_POSITION = AMOTION_EVENT_INVALID_CURSOR_POSITION;
+constexpr auto AXIS_X = AMOTION_EVENT_AXIS_X;
+constexpr auto AXIS_Y = AMOTION_EVENT_AXIS_Y;
 constexpr ui::LogicalDisplayId DISPLAY_ID = ui::LogicalDisplayId::DEFAULT;
 constexpr ui::LogicalDisplayId SECONDARY_DISPLAY_ID = ui::LogicalDisplayId{DISPLAY_ID.val() + 1};
 constexpr int32_t DISPLAY_WIDTH = 480;
@@ -94,9 +98,35 @@ DisplayViewport createSecondaryViewport() {
     return v;
 }
 
+// In a number of these tests, we want to check that some pointer motion is reported without
+// specifying an exact value, as that would require updating the tests every time the pointer
+// ballistics was changed. To do this, we make some matchers that only check the sign of a
+// particular axis.
+MATCHER_P(WithPositiveAxis, axis, "MotionEvent with a positive axis value") {
+    *result_listener << "expected 1 pointer with a positive "
+                     << InputEventLookup::getAxisLabel(axis) << " axis but got "
+                     << arg.pointerCoords.size() << " pointers, with axis value "
+                     << arg.pointerCoords[0].getAxisValue(axis);
+    return arg.pointerCoords.size() == 1 && arg.pointerCoords[0].getAxisValue(axis) > 0;
+}
+
+MATCHER_P(WithZeroAxis, axis, "MotionEvent with a zero axis value") {
+    *result_listener << "expected 1 pointer with a zero " << InputEventLookup::getAxisLabel(axis)
+                     << " axis but got " << arg.pointerCoords.size()
+                     << " pointers, with axis value " << arg.pointerCoords[0].getAxisValue(axis);
+    return arg.pointerCoords.size() == 1 && arg.pointerCoords[0].getAxisValue(axis) == 0;
+}
+
+MATCHER_P(WithNegativeAxis, axis, "MotionEvent with a negative axis value") {
+    *result_listener << "expected 1 pointer with a negative "
+                     << InputEventLookup::getAxisLabel(axis) << " axis but got "
+                     << arg.pointerCoords.size() << " pointers, with axis value "
+                     << arg.pointerCoords[0].getAxisValue(axis);
+    return arg.pointerCoords.size() == 1 && arg.pointerCoords[0].getAxisValue(axis) < 0;
+}
+
 } // namespace
 
-namespace input_flags = com::android::input::flags;
 namespace vd_flags = android::companion::virtualdevice::flags;
 
 /**
@@ -150,24 +180,21 @@ protected:
         ASSERT_GT(mDevice->getGeneration(), generation);
     }
 
-    void testMotionRotation(int32_t originalX, int32_t originalY, int32_t rotatedX,
-                            int32_t rotatedY) {
+    void testRotation(int32_t originalX, int32_t originalY,
+                      const testing::Matcher<NotifyMotionArgs>& coordsMatcher) {
         std::list<NotifyArgs> args;
         args += process(ARBITRARY_TIME, EV_REL, REL_X, originalX);
         args += process(ARBITRARY_TIME, EV_REL, REL_Y, originalY);
         args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
         ASSERT_THAT(args,
                     ElementsAre(VariantWith<NotifyMotionArgs>(
-                            AllOf(WithMotionAction(ACTION_MOVE),
-                                  WithCoords(float(rotatedX) / TRACKBALL_MOVEMENT_THRESHOLD,
-                                             float(rotatedY) / TRACKBALL_MOVEMENT_THRESHOLD)))));
+                            AllOf(WithMotionAction(ACTION_MOVE), coordsMatcher))));
     }
 };
 
 class CursorInputMapperUnitTest : public CursorInputMapperUnitTestBase {
 protected:
     void SetUp() override {
-        input_flags::enable_new_mouse_pointer_ballistics(false);
         vd_flags::high_resolution_scroll(false);
         CursorInputMapperUnitTestBase::SetUp();
     }
@@ -377,7 +404,8 @@ TEST_F(CursorInputMapperUnitTest, ProcessPointerCapture) {
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionAction(HOVER_MOVE), WithSource(AINPUT_SOURCE_MOUSE),
                               expectedCoords, expectedCursorPosition,
-                              WithRelativeMotion(10.0f, 20.0f)))));
+                              WithPositiveAxis(AMOTION_EVENT_AXIS_RELATIVE_X),
+                              WithPositiveAxis(AMOTION_EVENT_AXIS_RELATIVE_Y)))));
 }
 
 TEST_F(CursorInputMapperUnitTest, PopulateDeviceInfoReturnsScaledRangeInNavigationMode) {
@@ -482,9 +510,8 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleIndependentXYUpdates) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                              WithCoords(1.0f / TRACKBALL_MOVEMENT_THRESHOLD, 0.0f),
-                              WithPressure(0.0f)))));
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPressure(0.0f),
+                              WithPositiveAxis(AXIS_X), WithZeroAxis(AXIS_Y)))));
     args.clear();
 
     // Motion in Y but not X.
@@ -492,9 +519,8 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleIndependentXYUpdates) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                              WithCoords(0.0f, -2.0f / TRACKBALL_MOVEMENT_THRESHOLD),
-                              WithPressure(0.0f)))));
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPressure(0.0f),
+                              WithZeroAxis(AXIS_X), WithNegativeAxis(AXIS_Y)))));
     args.clear();
 }
 
@@ -541,15 +567,13 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleCombinedXYAndButtonUpdates)
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                                          WithCoords(1.0f / TRACKBALL_MOVEMENT_THRESHOLD,
-                                                     -2.0f / TRACKBALL_MOVEMENT_THRESHOLD),
-                                          WithPressure(1.0f))),
+                                    WithMotionAction(AMOTION_EVENT_ACTION_DOWN)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                                          WithCoords(1.0f / TRACKBALL_MOVEMENT_THRESHOLD,
-                                                     -2.0f / TRACKBALL_MOVEMENT_THRESHOLD),
-                                          WithPressure(1.0f)))));
+                                    WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(AllOf(WithPositiveAxis(AXIS_X),
+                                                         WithNegativeAxis(AXIS_Y),
+                                                         WithPressure(1.0f)))));
     args.clear();
 
     // Move X, Y a bit while pressed.
@@ -558,10 +582,8 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleCombinedXYAndButtonUpdates)
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                              WithCoords(2.0f / TRACKBALL_MOVEMENT_THRESHOLD,
-                                         1.0f / TRACKBALL_MOVEMENT_THRESHOLD),
-                              WithPressure(1.0f)))));
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPressure(1.0f),
+                              WithPositiveAxis(AXIS_X), WithPositiveAxis(AXIS_Y)))));
     args.clear();
 
     // Release Button.
@@ -586,14 +608,16 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldNotRotateMotionsWhenOrientationAw
             .WillRepeatedly(Return(createPrimaryViewport(ui::Rotation::Rotation90)));
     mMapper = createInputMapper<CursorInputMapper>(*mDeviceContext, mReaderConfiguration);
 
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0,  1,  0,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  1,  1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  0,  1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1, -1,  1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0, -1,  0, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1, -1, -1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  0, -1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  1, -1,  1));
+    constexpr auto X = AXIS_X;
+    constexpr auto Y = AXIS_Y;
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0,  1, AllOf(WithZeroAxis(X),     WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  1, AllOf(WithPositiveAxis(X), WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  0, AllOf(WithPositiveAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1, -1, AllOf(WithPositiveAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0, -1, AllOf(WithZeroAxis(X),     WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1, -1, AllOf(WithNegativeAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  0, AllOf(WithNegativeAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  1, AllOf(WithNegativeAxis(X), WithPositiveAxis(Y))));
 }
 
 TEST_F(CursorInputMapperUnitTest, ProcessShouldRotateMotionsWhenNotOrientationAware) {
@@ -604,54 +628,56 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldRotateMotionsWhenNotOrientationAw
             .WillRepeatedly(Return(createPrimaryViewport(ui::Rotation::Rotation0)));
     mMapper = createInputMapper<CursorInputMapper>(*mDeviceContext, mReaderConfiguration);
 
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0,  1,  0,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  1,  1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  0,  1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1, -1,  1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0, -1,  0, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1, -1, -1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  0, -1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  1, -1,  1));
+    constexpr auto X = AXIS_X;
+    constexpr auto Y = AXIS_Y;
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0,  1, AllOf(WithZeroAxis(X),     WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  1, AllOf(WithPositiveAxis(X), WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  0, AllOf(WithPositiveAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1, -1, AllOf(WithPositiveAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0, -1, AllOf(WithZeroAxis(X),     WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1, -1, AllOf(WithNegativeAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  0, AllOf(WithNegativeAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  1, AllOf(WithNegativeAxis(X), WithPositiveAxis(Y))));
 
     EXPECT_CALL((*mDevice), getAssociatedViewport)
             .WillRepeatedly(Return(createPrimaryViewport(ui::Rotation::Rotation90)));
     std::list<NotifyArgs> args =
             mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
                                  InputReaderConfiguration::Change::DISPLAY_INFO);
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0,  1, -1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  1, -1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  0,  0,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1, -1,  1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0, -1,  1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1, -1,  1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  0,  0, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  1, -1, -1));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0,  1, AllOf(WithNegativeAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  1, AllOf(WithNegativeAxis(X), WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  0, AllOf(WithZeroAxis(X),     WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1, -1, AllOf(WithPositiveAxis(X), WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0, -1, AllOf(WithPositiveAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1, -1, AllOf(WithPositiveAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  0, AllOf(WithZeroAxis(X),     WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  1, AllOf(WithNegativeAxis(X), WithNegativeAxis(Y))));
 
     EXPECT_CALL((*mDevice), getAssociatedViewport)
             .WillRepeatedly(Return(createPrimaryViewport(ui::Rotation::Rotation180)));
     args = mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
                                 InputReaderConfiguration::Change::DISPLAY_INFO);
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0,  1,  0, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  1, -1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  0, -1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1, -1, -1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0, -1,  0,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1, -1,  1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  0,  1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  1,  1, -1));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0,  1, AllOf(WithZeroAxis(X),     WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  1, AllOf(WithNegativeAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  0, AllOf(WithNegativeAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1, -1, AllOf(WithNegativeAxis(X), WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0, -1, AllOf(WithZeroAxis(X),     WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1, -1, AllOf(WithPositiveAxis(X), WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  0, AllOf(WithPositiveAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  1, AllOf(WithPositiveAxis(X), WithNegativeAxis(Y))));
 
     EXPECT_CALL((*mDevice), getAssociatedViewport)
             .WillRepeatedly(Return(createPrimaryViewport(ui::Rotation::Rotation270)));
     args = mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
                                 InputReaderConfiguration::Change::DISPLAY_INFO);
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0,  1,  1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  1,  1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1,  0,  0, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 1, -1, -1, -1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation( 0, -1, -1,  0));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1, -1, -1,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  0,  0,  1));
-    ASSERT_NO_FATAL_FAILURE(testMotionRotation(-1,  1,  1,  1));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0,  1, AllOf(WithPositiveAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  1, AllOf(WithPositiveAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1,  0, AllOf(WithZeroAxis(X),     WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 1, -1, AllOf(WithNegativeAxis(X), WithNegativeAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation( 0, -1, AllOf(WithNegativeAxis(X), WithZeroAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1, -1, AllOf(WithNegativeAxis(X), WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  0, AllOf(WithZeroAxis(X),     WithPositiveAxis(Y))));
+    ASSERT_NO_FATAL_FAILURE(testRotation(-1,  1, AllOf(WithPositiveAxis(X), WithPositiveAxis(Y))));
 }
 
 TEST_F(CursorInputMapperUnitTest, PopulateDeviceInfoReturnsRangeFromPolicy) {
@@ -1005,10 +1031,6 @@ TEST_F(CursorInputMapperUnitTest, ProcessHighResReversedVerticalScroll) {
  */
 TEST_F(CursorInputMapperUnitTest, PointerCaptureDisablesVelocityProcessing) {
     mPropertyMap.addProperty("cursor.mode", "pointer");
-    const VelocityControlParameters testParams(/*scale=*/5.f, /*lowThreshold=*/0.f,
-                                               /*highThreshold=*/100.f, /*acceleration=*/10.f);
-    mReaderConfiguration.pointerVelocityControlParameters = testParams;
-    mFakePolicy->setVelocityControlParams(testParams);
     createMapper();
 
     NotifyMotionArgs motionArgs;
@@ -1073,48 +1095,7 @@ TEST_F(CursorInputMapperUnitTest, ConfigureDisplayIdNoAssociatedViewport) {
                               WithCoords(0.0f, 0.0f)))));
 }
 
-// TODO(b/320433834): De-duplicate the test cases once the flag is removed.
-class CursorInputMapperUnitTestWithNewBallistics : public CursorInputMapperUnitTestBase {
-protected:
-    void SetUp() override {
-        input_flags::enable_new_mouse_pointer_ballistics(true);
-        CursorInputMapperUnitTestBase::SetUp();
-    }
-};
-
-TEST_F(CursorInputMapperUnitTestWithNewBallistics, PointerCaptureDisablesVelocityProcessing) {
-    mPropertyMap.addProperty("cursor.mode", "pointer");
-    createMapper();
-
-    NotifyMotionArgs motionArgs;
-    std::list<NotifyArgs> args;
-
-    // Move and verify scale is applied.
-    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
-    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
-    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
-    motionArgs = std::get<NotifyMotionArgs>(args.front());
-    const float relX = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
-    const float relY = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
-    ASSERT_GT(relX, 10);
-    ASSERT_GT(relY, 20);
-    args.clear();
-
-    // Enable Pointer Capture
-    setPointerCapture(true);
-
-    // Move and verify scale is not applied.
-    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
-    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
-    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
-    motionArgs = std::get<NotifyMotionArgs>(args.front());
-    const float relX2 = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
-    const float relY2 = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
-    ASSERT_EQ(10, relX2);
-    ASSERT_EQ(20, relY2);
-}
-
-TEST_F(CursorInputMapperUnitTestWithNewBallistics, ConfigureAccelerationWithAssociatedViewport) {
+TEST_F(CursorInputMapperUnitTest, ConfigureAccelerationWithAssociatedViewport) {
     mPropertyMap.addProperty("cursor.mode", "pointer");
     DisplayViewport primaryViewport = createPrimaryViewport(ui::Rotation::Rotation0);
     mReaderConfiguration.setDisplayViewports({primaryViewport});
@@ -1149,7 +1130,7 @@ TEST_F(CursorInputMapperUnitTestWithNewBallistics, ConfigureAccelerationWithAsso
                                                                 WithRelativeMotion(10, 20)))));
 }
 
-TEST_F(CursorInputMapperUnitTestWithNewBallistics, ConfigureAccelerationOnDisplayChange) {
+TEST_F(CursorInputMapperUnitTest, ConfigureAccelerationOnDisplayChange) {
     mPropertyMap.addProperty("cursor.mode", "pointer");
     DisplayViewport primaryViewport = createPrimaryViewport(ui::Rotation::Rotation0);
     mReaderConfiguration.setDisplayViewports({primaryViewport});
@@ -1184,72 +1165,6 @@ TEST_F(CursorInputMapperUnitTestWithNewBallistics, ConfigureAccelerationOnDispla
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionAction(HOVER_MOVE), WithDisplayId(DISPLAY_ID),
                               WithRelativeMotion(10, 20)))));
-}
-
-TEST_F(CursorInputMapperUnitTestWithNewBallistics, ProcessRegularScroll) {
-    createMapper();
-
-    std::list<NotifyArgs> args;
-    args += process(ARBITRARY_TIME, EV_REL, REL_WHEEL, 1);
-    args += process(ARBITRARY_TIME, EV_REL, REL_HWHEEL, 1);
-    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
-
-    EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
-                                          WithScroll(1.0f, 1.0f)))));
-}
-
-TEST_F(CursorInputMapperUnitTestWithNewBallistics, ProcessHighResScroll) {
-    vd_flags::high_resolution_scroll(true);
-    EXPECT_CALL(mMockEventHub, hasRelativeAxis(EVENTHUB_ID, REL_WHEEL_HI_RES))
-            .WillRepeatedly(Return(true));
-    EXPECT_CALL(mMockEventHub, hasRelativeAxis(EVENTHUB_ID, REL_HWHEEL_HI_RES))
-            .WillRepeatedly(Return(true));
-    createMapper();
-
-    std::list<NotifyArgs> args;
-    args += process(ARBITRARY_TIME, EV_REL, REL_WHEEL_HI_RES, 60);
-    args += process(ARBITRARY_TIME, EV_REL, REL_HWHEEL_HI_RES, 60);
-    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
-
-    EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
-                                          WithScroll(0.5f, 0.5f)))));
-}
-
-TEST_F(CursorInputMapperUnitTestWithNewBallistics, HighResScrollIgnoresRegularScroll) {
-    vd_flags::high_resolution_scroll(true);
-    EXPECT_CALL(mMockEventHub, hasRelativeAxis(EVENTHUB_ID, REL_WHEEL_HI_RES))
-            .WillRepeatedly(Return(true));
-    EXPECT_CALL(mMockEventHub, hasRelativeAxis(EVENTHUB_ID, REL_HWHEEL_HI_RES))
-            .WillRepeatedly(Return(true));
-    createMapper();
-
-    std::list<NotifyArgs> args;
-    args += process(ARBITRARY_TIME, EV_REL, REL_WHEEL_HI_RES, 60);
-    args += process(ARBITRARY_TIME, EV_REL, REL_HWHEEL_HI_RES, 60);
-    args += process(ARBITRARY_TIME, EV_REL, REL_WHEEL, 1);
-    args += process(ARBITRARY_TIME, EV_REL, REL_HWHEEL, 1);
-    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
-
-    EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
-                                          WithScroll(0.5f, 0.5f)))));
 }
 
 namespace {
