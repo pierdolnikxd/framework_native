@@ -147,8 +147,8 @@ public:
                 (const std::string &, bool, const std::vector<uint8_t> &), (override));
     MOCK_METHOD(hal::Error, setBrightness, (float), (override));
     MOCK_METHOD(hal::Error, setBlockingRegion, (const android::Region &), (override));
-    MOCK_METHOD(hal::Error, setLuts,
-                (std::vector<aidl::android::hardware::graphics::composer3::Lut>&), (override));
+    MOCK_METHOD(hal::Error, setLuts, (aidl::android::hardware::graphics::composer3::Luts&),
+                (override));
 };
 
 } // namespace android::HWC2::mock

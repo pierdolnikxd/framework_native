@@ -26,6 +26,7 @@
 #include <android/gui/LayerCaptureArgs.h>
 #include <android/gui/TrustedPresentationThresholds.h>
 #include <android/native_window.h>
+#include <gui/DisplayLuts.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
@@ -184,6 +185,7 @@ struct layer_state_t {
         eCachingHintChanged = 0x00000200,
         eDimmingEnabledChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
+        eLutsChanged = 0x00001000,
         eBufferCropChanged = 0x00002000,
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
@@ -255,7 +257,7 @@ struct layer_state_t {
             layer_state_t::eTransformToDisplayInverseChanged |
             layer_state_t::eTransparentRegionChanged |
             layer_state_t::eExtendedRangeBrightnessChanged |
-            layer_state_t::eDesiredHdrHeadroomChanged;
+            layer_state_t::eDesiredHdrHeadroomChanged | layer_state_t::eLutsChanged;
 
     // Content updates.
     static constexpr uint64_t CONTENT_CHANGES = layer_state_t::BUFFER_CHANGES |
@@ -416,6 +418,8 @@ struct layer_state_t {
     TrustedPresentationListener trustedPresentationListener;
 
     std::shared_ptr<gui::BufferReleaseChannel::ProducerEndpoint> bufferReleaseChannel;
+
+    std::shared_ptr<gui::DisplayLuts> luts;
 };
 
 class ComposerState {
