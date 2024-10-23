@@ -105,7 +105,8 @@ static const char* kStaticCachableList[] = {
 };
 
 bool BinderCacheWithInvalidation::isClientSideCachingEnabled(const std::string& serviceName) {
-    if (ProcessState::self()->getThreadPoolMaxTotalThreadCount() <= 0) {
+    sp<ProcessState> self = ProcessState::selfOrNull();
+    if (!self || self->getThreadPoolMaxTotalThreadCount() <= 0) {
         ALOGW("Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be "
               "implemented. serviceName: %s",
               serviceName.c_str());
