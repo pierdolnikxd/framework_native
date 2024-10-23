@@ -214,3 +214,10 @@ flag {
   description: "Enable telemetry for rotary input"
   bug: "370353565"
 }
+
+flag {
+  name: "set_input_device_kernel_wake"
+  namespace: "input"
+  description: "Set input device's power/wakeup sysfs node"
+  bug: "372812925"
+}

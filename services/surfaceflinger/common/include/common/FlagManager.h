@@ -54,6 +54,7 @@ public:
     bool adpf_use_fmq_channel_fixed() const;
 
     /// Trunk stable readonly flags ///
+    bool adpf_fmq_sf() const;
     bool connected_display() const;
     bool frame_rate_category_mrr() const;
     bool enable_small_area_detection() const;
