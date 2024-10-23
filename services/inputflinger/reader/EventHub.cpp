@@ -43,6 +43,7 @@
 #include <android-base/strings.h>
 #include <cutils/properties.h>
 #include <ftl/enum.h>
+#include <input/InputEventLabels.h>
 #include <input/KeyCharacterMap.h>
 #include <input/KeyLayoutMap.h>
 #include <input/PrintTools.h>
@@ -1021,6 +1022,8 @@ std::optional<RawAbsoluteAxisInfo> EventHub::getAbsoluteAxisInfo(int32_t deviceI
     std::scoped_lock _l(mLock);
     const Device* device = getDeviceLocked(deviceId);
     if (device == nullptr) {
+        ALOGE("Couldn't find device with ID %d, so returning null axis info for axis %s", deviceId,
+              InputEventLookup::getLinuxEvdevLabel(EV_ABS, axis, 0).code.c_str());
         return std::nullopt;
     }
     // We can read the RawAbsoluteAxisInfo even if the device is disabled and doesn't have a valid
