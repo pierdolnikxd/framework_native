@@ -94,6 +94,7 @@ public:
     bool single_hop_screenshot() const;
     bool trace_frame_rate_override() const;
     bool true_hdr_screenshots() const;
+    bool display_config_error_hal() const;
 
 protected:
     // overridden for unit tests
