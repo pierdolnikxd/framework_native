@@ -57,7 +57,6 @@ cc_test {
         "surfaceflinger_defaults",
     ],
     test_suites: ["device-tests"],
-    static_libs: ["libc++fs"],
     header_libs: ["surfaceflinger_tests_common_headers"],
     srcs: [
         ":libsurfaceflinger_mock_sources",
