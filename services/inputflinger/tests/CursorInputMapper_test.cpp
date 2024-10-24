@@ -371,14 +371,12 @@ TEST_F(CursorInputMapperUnitTest, ProcessPointerCapture) {
     args += process(EV_KEY, BTN_MOUSE, 0);
     args += process(EV_SYN, SYN_REPORT, 0);
     ASSERT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(BUTTON_RELEASE),
-                                          WithSource(AINPUT_SOURCE_MOUSE_RELATIVE),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(ACTION_UP),
-                                          WithSource(AINPUT_SOURCE_MOUSE_RELATIVE),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP))));
+    ASSERT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(AllOf(WithSource(AINPUT_SOURCE_MOUSE_RELATIVE),
+                                                         WithCoords(0.0f, 0.0f),
+                                                         WithPressure(0.0f)))));
 
     // Another move.
     args.clear();
@@ -439,64 +437,40 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldSetAllFieldsAndIncludeGlobalMetaS
     args += process(ARBITRARY_TIME, EV_KEY, BTN_MOUSE, 1);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithEventTime(ARBITRARY_TIME), WithDeviceId(DEVICE_ID),
-                                          WithSource(AINPUT_SOURCE_TRACKBALL), WithFlags(0),
-                                          WithEdgeFlags(0), WithPolicyFlags(0),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                                          WithMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON),
-                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                                          WithPointerCount(1), WithPointerId(0, 0),
-                                          WithToolType(ToolType::MOUSE), WithCoords(0.0f, 0.0f),
-                                          WithPressure(1.0f),
-                                          WithPrecision(TRACKBALL_MOVEMENT_THRESHOLD,
-                                                        TRACKBALL_MOVEMENT_THRESHOLD),
-                                          WithDownTime(ARBITRARY_TIME))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithEventTime(ARBITRARY_TIME), WithDeviceId(DEVICE_ID),
-                                          WithSource(AINPUT_SOURCE_TRACKBALL), WithFlags(0),
-                                          WithEdgeFlags(0), WithPolicyFlags(0),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                                          WithMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON),
-                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                                          WithPointerCount(1), WithPointerId(0, 0),
-                                          WithToolType(ToolType::MOUSE), WithCoords(0.0f, 0.0f),
-                                          WithPressure(1.0f),
-                                          WithPrecision(TRACKBALL_MOVEMENT_THRESHOLD,
-                                                        TRACKBALL_MOVEMENT_THRESHOLD),
-                                          WithDownTime(ARBITRARY_TIME)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithEventTime(ARBITRARY_TIME), WithDeviceId(DEVICE_ID),
+                              WithSource(AINPUT_SOURCE_TRACKBALL), WithFlags(0), WithEdgeFlags(0),
+                              WithPolicyFlags(0),
+                              WithMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON),
+                              WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPointerCount(1),
+                              WithPointerId(0, 0), WithToolType(ToolType::MOUSE),
+                              WithCoords(0.0f, 0.0f), WithPressure(1.0f),
+                              WithPrecision(TRACKBALL_MOVEMENT_THRESHOLD,
+                                            TRACKBALL_MOVEMENT_THRESHOLD),
+                              WithDownTime(ARBITRARY_TIME)))));
     args.clear();
 
     // Button release.  Should have same down time.
     args += process(ARBITRARY_TIME + 1, EV_KEY, BTN_MOUSE, 0);
     args += process(ARBITRARY_TIME + 1, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithEventTime(ARBITRARY_TIME + 1),
-                                          WithDeviceId(DEVICE_ID),
-                                          WithSource(AINPUT_SOURCE_TRACKBALL), WithFlags(0),
-                                          WithEdgeFlags(0), WithPolicyFlags(0),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                                          WithMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON),
-                                          WithButtonState(0), WithPointerCount(1),
-                                          WithPointerId(0, 0), WithToolType(ToolType::MOUSE),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f),
-                                          WithPrecision(TRACKBALL_MOVEMENT_THRESHOLD,
-                                                        TRACKBALL_MOVEMENT_THRESHOLD),
-                                          WithDownTime(ARBITRARY_TIME))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithEventTime(ARBITRARY_TIME + 1),
-                                          WithDeviceId(DEVICE_ID),
-                                          WithSource(AINPUT_SOURCE_TRACKBALL), WithFlags(0),
-                                          WithEdgeFlags(0), WithPolicyFlags(0),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                                          WithMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON),
-                                          WithButtonState(0), WithPointerCount(1),
-                                          WithPointerId(0, 0), WithToolType(ToolType::MOUSE),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f),
-                                          WithPrecision(TRACKBALL_MOVEMENT_THRESHOLD,
-                                                        TRACKBALL_MOVEMENT_THRESHOLD),
-                                          WithDownTime(ARBITRARY_TIME)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithEventTime(ARBITRARY_TIME + 1), WithDeviceId(DEVICE_ID),
+                              WithSource(AINPUT_SOURCE_TRACKBALL), WithFlags(0), WithEdgeFlags(0),
+                              WithPolicyFlags(0),
+                              WithMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON),
+                              WithButtonState(0), WithPointerCount(1), WithPointerId(0, 0),
+                              WithToolType(ToolType::MOUSE), WithCoords(0.0f, 0.0f),
+                              WithPressure(0.0f),
+                              WithPrecision(TRACKBALL_MOVEMENT_THRESHOLD,
+                                            TRACKBALL_MOVEMENT_THRESHOLD),
+                              WithDownTime(ARBITRARY_TIME)))));
 }
 
 TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleIndependentXYUpdates) {
@@ -510,7 +484,7 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleIndependentXYUpdates) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPressure(0.0f),
+                        AllOf(WithMotionAction(ACTION_MOVE), WithPressure(0.0f),
                               WithPositiveAxis(AXIS_X), WithZeroAxis(AXIS_Y)))));
     args.clear();
 
@@ -519,7 +493,7 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleIndependentXYUpdates) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPressure(0.0f),
+                        AllOf(WithMotionAction(ACTION_MOVE), WithPressure(0.0f),
                               WithZeroAxis(AXIS_X), WithNegativeAxis(AXIS_Y)))));
     args.clear();
 }
@@ -534,24 +508,22 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleIndependentButtonUpdates) {
     args += process(ARBITRARY_TIME, EV_KEY, BTN_MOUSE, 1);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0.0f, 0.0f), WithPressure(1.0f)))));
     args.clear();
 
     // Button release.
     args += process(ARBITRARY_TIME, EV_KEY, BTN_MOUSE, 0);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
 }
 
 TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleCombinedXYAndButtonUpdates) {
@@ -566,10 +538,8 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleCombinedXYAndButtonUpdates)
     args += process(ARBITRARY_TIME, EV_KEY, BTN_MOUSE, 1);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    WithMotionAction(AMOTION_EVENT_ACTION_DOWN)),
-                            VariantWith<NotifyMotionArgs>(
-                                    WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS))));
     EXPECT_THAT(args,
                 Each(VariantWith<NotifyMotionArgs>(AllOf(WithPositiveAxis(AXIS_X),
                                                          WithNegativeAxis(AXIS_Y),
@@ -582,7 +552,7 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleCombinedXYAndButtonUpdates)
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithPressure(1.0f),
+                        AllOf(WithMotionAction(ACTION_MOVE), WithPressure(1.0f),
                               WithPositiveAxis(AXIS_X), WithPositiveAxis(AXIS_Y)))));
     args.clear();
 
@@ -590,12 +560,11 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleCombinedXYAndButtonUpdates)
     args += process(ARBITRARY_TIME, EV_KEY, BTN_MOUSE, 0);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
     args.clear();
 }
 
@@ -768,30 +737,22 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleAllButtonsWithZeroCoords) {
     args += process(ARBITRARY_TIME, EV_KEY, BTN_LEFT, 1);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithCoords(0.0f, 0.0f),
+                              WithPressure(1.0f)))));
     args.clear();
     args += process(ARBITRARY_TIME, EV_KEY, BTN_LEFT, 0);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                                          WithButtonState(0), WithCoords(0.0f, 0.0f),
-                                          WithPressure(0.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                                          WithButtonState(0), WithCoords(0.0f, 0.0f),
-                                          WithPressure(0.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                                          WithButtonState(0), WithCoords(0.0f, 0.0f),
-                                          WithPressure(0.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithButtonState(0), WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
     args.clear();
 
     // press BTN_RIGHT + BTN_MIDDLE, release BTN_RIGHT, release BTN_MIDDLE
@@ -800,49 +761,41 @@ TEST_F(CursorInputMapperUnitTest, ProcessShouldHandleAllButtonsWithZeroCoords) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                    AllOf(WithMotionAction(ACTION_DOWN),
                                           WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY |
-                                                          AMOTION_EVENT_BUTTON_TERTIARY),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f))),
+                                                          AMOTION_EVENT_BUTTON_TERTIARY))),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                                          WithButtonState(AMOTION_EVENT_BUTTON_TERTIARY),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f))),
+                                    AllOf(WithMotionAction(BUTTON_PRESS),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_TERTIARY))),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                    AllOf(WithMotionAction(BUTTON_PRESS),
                                           WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY |
-                                                          AMOTION_EVENT_BUTTON_TERTIARY),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f)))));
+                                                          AMOTION_EVENT_BUTTON_TERTIARY)))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0.0f, 0.0f), WithPressure(1.0f)))));
     args.clear();
 
     args += process(ARBITRARY_TIME, EV_KEY, BTN_RIGHT, 0);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                                          WithButtonState(AMOTION_EVENT_BUTTON_TERTIARY),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                                          WithButtonState(AMOTION_EVENT_BUTTON_TERTIARY),
-                                          WithCoords(0.0f, 0.0f), WithPressure(1.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_MOVE))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithButtonState(AMOTION_EVENT_BUTTON_TERTIARY),
+                              WithCoords(0.0f, 0.0f), WithPressure(1.0f)))));
     args.clear();
 
     args += process(ARBITRARY_TIME, EV_KEY, BTN_MIDDLE, 0);
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                                          WithButtonState(0), WithCoords(0.0f, 0.0f),
-                                          WithPressure(0.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithButtonState(0),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f))),
-                            VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithButtonState(0),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
+    EXPECT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithButtonState(0), WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
 }
 
 class CursorInputMapperButtonKeyTest
@@ -864,11 +817,11 @@ TEST_P(CursorInputMapperButtonKeyTest, ProcessShouldHandleButtonKeyWithZeroCoord
                 ElementsAre(VariantWith<NotifyKeyArgs>(AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN),
                                                              WithKeyCode(expectedKeyCode))),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                    AllOf(WithMotionAction(HOVER_MOVE),
                                           WithButtonState(expectedButtonState),
                                           WithCoords(0.0f, 0.0f), WithPressure(0.0f))),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                    AllOf(WithMotionAction(BUTTON_PRESS),
                                           WithButtonState(expectedButtonState),
                                           WithCoords(0.0f, 0.0f), WithPressure(0.0f)))));
     args.clear();
@@ -877,13 +830,11 @@ TEST_P(CursorInputMapperButtonKeyTest, ProcessShouldHandleButtonKeyWithZeroCoord
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                                          WithButtonState(0), WithCoords(0.0f, 0.0f),
-                                          WithPressure(0.0f))),
+                                    AllOf(WithMotionAction(BUTTON_RELEASE), WithButtonState(0),
+                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f))),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                                          WithButtonState(0), WithCoords(0.0f, 0.0f),
-                                          WithPressure(0.0f))),
+                                    AllOf(WithMotionAction(HOVER_MOVE), WithButtonState(0),
+                                          WithCoords(0.0f, 0.0f), WithPressure(0.0f))),
                             VariantWith<NotifyKeyArgs>(AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP),
                                                              WithKeyCode(expectedKeyCode)))));
 }
@@ -907,8 +858,7 @@ TEST_F(CursorInputMapperUnitTest, ProcessWhenModeIsPointerShouldKeepZeroCoords) 
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                              WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                        AllOf(WithSource(AINPUT_SOURCE_MOUSE), WithMotionAction(HOVER_MOVE),
                               WithCoords(0.0f, 0.0f), WithPressure(0.0f), WithSize(0.0f),
                               WithTouchDimensions(0.0f, 0.0f), WithToolDimensions(0.0f, 0.0f),
                               WithOrientation(0.0f), WithDistance(0.0f)))));
@@ -923,13 +873,11 @@ TEST_F(CursorInputMapperUnitTest, ProcessRegularScroll) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
 
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
                                           WithScroll(1.0f, 1.0f)))));
+    EXPECT_THAT(args, Each(VariantWith<NotifyMotionArgs>(WithSource(AINPUT_SOURCE_MOUSE))));
 }
 
 TEST_F(CursorInputMapperUnitTest, ProcessHighResScroll) {
@@ -946,13 +894,11 @@ TEST_F(CursorInputMapperUnitTest, ProcessHighResScroll) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
 
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
                                           WithScroll(0.5f, 0.5f)))));
+    EXPECT_THAT(args, Each(VariantWith<NotifyMotionArgs>(WithSource(AINPUT_SOURCE_MOUSE))));
 }
 
 TEST_F(CursorInputMapperUnitTest, HighResScrollIgnoresRegularScroll) {
@@ -971,13 +917,11 @@ TEST_F(CursorInputMapperUnitTest, HighResScrollIgnoresRegularScroll) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
 
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
                                           WithScroll(0.5f, 0.5f)))));
+    EXPECT_THAT(args, Each(VariantWith<NotifyMotionArgs>(WithSource(AINPUT_SOURCE_MOUSE))));
 }
 
 TEST_F(CursorInputMapperUnitTest, ProcessReversedVerticalScroll) {
@@ -992,13 +936,11 @@ TEST_F(CursorInputMapperUnitTest, ProcessReversedVerticalScroll) {
     // Reversed vertical scrolling only affects the y-axis, expect it to be -1.0f to indicate the
     // inverted scroll direction.
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
                                           WithScroll(1.0f, -1.0f)))));
+    EXPECT_THAT(args, Each(VariantWith<NotifyMotionArgs>(WithSource(AINPUT_SOURCE_MOUSE))));
 }
 
 TEST_F(CursorInputMapperUnitTest, ProcessHighResReversedVerticalScroll) {
@@ -1016,13 +958,11 @@ TEST_F(CursorInputMapperUnitTest, ProcessHighResReversedVerticalScroll) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
 
     EXPECT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                                          WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_SCROLL),
                                           WithScroll(0.5f, -0.5f)))));
+    EXPECT_THAT(args, Each(VariantWith<NotifyMotionArgs>(WithSource(AINPUT_SOURCE_MOUSE))));
 }
 
 /**
@@ -1042,8 +982,7 @@ TEST_F(CursorInputMapperUnitTest, PointerCaptureDisablesVelocityProcessing) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithSource(AINPUT_SOURCE_MOUSE),
-                              WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE)))));
+                        AllOf(WithSource(AINPUT_SOURCE_MOUSE), WithMotionAction(HOVER_MOVE)))));
     motionArgs = std::get<NotifyMotionArgs>(args.front());
     const float relX = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
     const float relY = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
@@ -1061,12 +1000,7 @@ TEST_F(CursorInputMapperUnitTest, PointerCaptureDisablesVelocityProcessing) {
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithSource(AINPUT_SOURCE_MOUSE_RELATIVE),
-                              WithMotionAction(AMOTION_EVENT_ACTION_MOVE)))));
-    motionArgs = std::get<NotifyMotionArgs>(args.front());
-    const float relX2 = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
-    const float relY2 = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
-    ASSERT_EQ(10, relX2);
-    ASSERT_EQ(20, relY2);
+                              WithMotionAction(ACTION_MOVE), WithRelativeMotion(10, 20)))));
 }
 
 TEST_F(CursorInputMapperUnitTest, ConfigureDisplayIdNoAssociatedViewport) {
@@ -1089,8 +1023,7 @@ TEST_F(CursorInputMapperUnitTest, ConfigureDisplayIdNoAssociatedViewport) {
     args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                              WithSource(AINPUT_SOURCE_MOUSE),
+                        AllOf(WithMotionAction(HOVER_MOVE), WithSource(AINPUT_SOURCE_MOUSE),
                               WithDisplayId(ui::LogicalDisplayId::INVALID),
                               WithCoords(0.0f, 0.0f)))));
 }
@@ -1194,8 +1127,7 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmoothening) {
     argsList += process(kernelEventTime, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(argsList,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                              WithEventTime(expectedEventTime)))));
+                        AllOf(WithMotionAction(HOVER_MOVE), WithEventTime(expectedEventTime)))));
     argsList.clear();
 
     // Process several events that come in quick succession, according to their timestamps.
@@ -1209,7 +1141,7 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmoothening) {
         argsList += process(kernelEventTime, EV_SYN, SYN_REPORT, 0);
         EXPECT_THAT(argsList,
                     ElementsAre(VariantWith<NotifyMotionArgs>(
-                            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                            AllOf(WithMotionAction(HOVER_MOVE),
                                   WithEventTime(expectedEventTime)))));
         argsList.clear();
     }
@@ -1225,8 +1157,7 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmootheningIsCapped) {
     argsList += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(argsList,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                              WithEventTime(expectedEventTime)))));
+                        AllOf(WithMotionAction(HOVER_MOVE), WithEventTime(expectedEventTime)))));
     argsList.clear();
 
     // Process several events with the same timestamp from the kernel.
@@ -1240,7 +1171,7 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmootheningIsCapped) {
         argsList += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
         EXPECT_THAT(argsList,
                     ElementsAre(VariantWith<NotifyMotionArgs>(
-                            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                            AllOf(WithMotionAction(HOVER_MOVE),
                                   WithEventTime(expectedEventTime)))));
         argsList.clear();
     }
@@ -1253,8 +1184,7 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmootheningIsCapped) {
         argsList += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
         EXPECT_THAT(argsList,
                     ElementsAre(VariantWith<NotifyMotionArgs>(
-                            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                                  WithEventTime(cappedEventTime)))));
+                            AllOf(WithMotionAction(HOVER_MOVE), WithEventTime(cappedEventTime)))));
         argsList.clear();
     }
 }
@@ -1270,8 +1200,7 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmootheningNotUsed) {
     argsList += process(kernelEventTime, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(argsList,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                              WithEventTime(expectedEventTime)))));
+                        AllOf(WithMotionAction(HOVER_MOVE), WithEventTime(expectedEventTime)))));
     argsList.clear();
 
     // If the next event has a timestamp that is sufficiently spaced out so that Bluetooth timestamp
@@ -1283,8 +1212,7 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmootheningNotUsed) {
     argsList += process(kernelEventTime, EV_SYN, SYN_REPORT, 0);
     EXPECT_THAT(argsList,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
-                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                              WithEventTime(expectedEventTime)))));
+                        AllOf(WithMotionAction(HOVER_MOVE), WithEventTime(expectedEventTime)))));
     argsList.clear();
 }
 
