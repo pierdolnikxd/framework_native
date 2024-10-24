@@ -336,7 +336,8 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromDisplayConfigura
                                       .height = config.height,
                                       .vsyncPeriod = config.vsyncPeriod,
                                       .configGroup = config.configGroup,
-                                      .vrrConfig = config.vrrConfig};
+                                      .vrrConfig = config.vrrConfig,
+                                      .hdrOutputType = config.hdrOutputType};
 
         const DisplayConfiguration::Dpi estimatedDPI =
                 getEstimatedDotsPerInchFromSize(hwcDisplayId, hwcMode);
