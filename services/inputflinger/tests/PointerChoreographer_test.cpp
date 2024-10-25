@@ -2601,6 +2601,126 @@ TEST_P(PointerVisibilityAndTouchpadTapStateOnKeyPressTestFixture, TestMetaKeyCom
     metaKeyCombinationDoesNotHidePointer(*pc, AKEYCODE_A, AKEYCODE_META_RIGHT);
 }
 
+using PointerChoreographerDisplayTopologyTestFixtureParam =
+        std::tuple<std::string_view /*name*/, int32_t /*source device*/,
+                   ControllerType /*PointerController*/, ToolType /*pointer tool type*/,
+                   FloatPoint /*source position */, FloatPoint /*hover move X/Y */,
+                   ui::LogicalDisplayId /*destination display*/>;
+
+class PointerChoreographerDisplayTopologyTestFixture
+      : public PointerChoreographerTest,
+        public testing::WithParamInterface<PointerChoreographerDisplayTopologyTestFixtureParam> {
+public:
+    static constexpr ui::LogicalDisplayId DISPLAY_CENTER_ID = ui::LogicalDisplayId{10};
+    static constexpr ui::LogicalDisplayId DISPLAY_TOP_ID = ui::LogicalDisplayId{20};
+    static constexpr ui::LogicalDisplayId DISPLAY_RIGHT_ID = ui::LogicalDisplayId{30};
+    static constexpr ui::LogicalDisplayId DISPLAY_BOTTOM_ID = ui::LogicalDisplayId{40};
+    static constexpr ui::LogicalDisplayId DISPLAY_LEFT_ID = ui::LogicalDisplayId{50};
+
+    PointerChoreographerDisplayTopologyTestFixture() {
+        com::android::input::flags::connected_displays_cursor(true);
+    }
+
+protected:
+    std::vector<DisplayViewport> mViewports{
+            createViewport(DISPLAY_CENTER_ID, /*width*/ 100, /*height*/ 100),
+            createViewport(DISPLAY_TOP_ID, /*width*/ 90, /*height*/ 90),
+            createViewport(DISPLAY_RIGHT_ID, /*width*/ 90, /*height*/ 90),
+            createViewport(DISPLAY_BOTTOM_ID, /*width*/ 90, /*height*/ 90),
+            createViewport(DISPLAY_LEFT_ID, /*width*/ 90, /*height*/ 90),
+    };
+
+    std::unordered_map<ui::LogicalDisplayId, std::vector<PointerChoreographer::AdjacentDisplay>>
+            mTopology{
+                    {DISPLAY_CENTER_ID,
+                     {{DISPLAY_TOP_ID, PointerChoreographer::DisplayPosition::TOP, 0.0f},
+                      {DISPLAY_RIGHT_ID, PointerChoreographer::DisplayPosition::RIGHT, 0.0f},
+                      {DISPLAY_BOTTOM_ID, PointerChoreographer::DisplayPosition::BOTTOM, 0.0f},
+                      {DISPLAY_LEFT_ID, PointerChoreographer::DisplayPosition::LEFT, 0.0f}}},
+            };
+
+private:
+    DisplayViewport createViewport(ui::LogicalDisplayId displayId, int32_t width, int32_t height) {
+        DisplayViewport viewport;
+        viewport.displayId = displayId;
+        viewport.logicalRight = width;
+        viewport.logicalBottom = height;
+        return viewport;
+    }
+};
+
+TEST_P(PointerChoreographerDisplayTopologyTestFixture, PointerChoreographerDisplayTopologyTest) {
+    const auto& [_, device, pointerControllerType, pointerToolType, initialPosition, hoverMove,
+                 destinationDisplay] = GetParam();
+
+    mChoreographer.setDisplayViewports(mViewports);
+    mChoreographer.setDefaultMouseDisplayId(
+            PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID);
+    mChoreographer.setDisplayTopology(mTopology);
+
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, device, ui::LogicalDisplayId::INVALID)}});
+
+    auto pc = assertPointerControllerCreated(pointerControllerType);
+    ASSERT_EQ(PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID,
+              pc->getDisplayId());
+
+    // Set initial position of the PointerController.
+    pc->setPosition(initialPosition.x, initialPosition.y);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Make NotifyMotionArgs and notify Choreographer.
+    auto pointerBuilder = PointerBuilder(/*id=*/0, pointerToolType)
+                                  .axis(AMOTION_EVENT_AXIS_RELATIVE_X, hoverMove.x)
+                                  .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, hoverMove.y);
+
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, device)
+                                        .pointer(pointerBuilder)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(ui::LogicalDisplayId::INVALID)
+                                        .build());
+
+    // Check that the PointerController updated the position and the pointer is shown.
+    // TODO(b/362719483) assert pointer controller position here
+    ASSERT_TRUE(pc->isPointerShown());
+    ASSERT_EQ(pc->getDisplayId(), destinationDisplay);
+
+    // Check that x-y coordinates, displayId and cursor position are correctly updated.
+    // TODO(b/362719483) assert Coords and cursor position here
+    mTestListener.assertNotifyMotionWasCalled(WithDisplayId(destinationDisplay));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        PointerChoreographerTest, PointerChoreographerDisplayTopologyTestFixture,
+        testing::Values(
+                std::make_tuple("UnchangedDisplay", AINPUT_SOURCE_MOUSE, ControllerType::MOUSE,
+                                ToolType::MOUSE, FloatPoint(50, 50) /* initial x/y */,
+                                FloatPoint(25, 25) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID),
+                std::make_tuple("TransitionToRightDisplay", AINPUT_SOURCE_MOUSE,
+                                ControllerType::MOUSE, ToolType::MOUSE,
+                                FloatPoint(50, 50) /* initial x/y */,
+                                FloatPoint(100, 25) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_RIGHT_ID),
+                std::make_tuple("TransitionToLeftDisplay", AINPUT_SOURCE_MOUSE,
+                                ControllerType::MOUSE, ToolType::MOUSE,
+                                FloatPoint(50, 50) /* initial x/y */,
+                                FloatPoint(-100, 25) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_LEFT_ID),
+                std::make_tuple("TransitionToTopDisplay",
+                                AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, ControllerType::MOUSE,
+                                ToolType::FINGER, FloatPoint(50, 50) /* initial x/y */,
+                                FloatPoint(25, -100) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_TOP_ID),
+                std::make_tuple("TransitionToBottomDisplay",
+                                AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, ControllerType::MOUSE,
+                                ToolType::FINGER, FloatPoint(50, 50) /* initial x/y */,
+                                FloatPoint(25, 100) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_BOTTOM_ID)),
+        [](const testing::TestParamInfo<PointerChoreographerDisplayTopologyTestFixtureParam>& p) {
+            return std::string{std::get<0>(p.param)};
+        });
+
 class PointerChoreographerWindowInfoListenerTest : public testing::Test {};
 
 TEST_F_WITH_FLAGS(
