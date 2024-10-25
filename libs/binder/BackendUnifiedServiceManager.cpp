@@ -172,10 +172,6 @@ BackendUnifiedServiceManager::BackendUnifiedServiceManager(const sp<AidlServiceM
     mCacheForGetService = std::make_shared<BinderCacheWithInvalidation>();
 }
 
-sp<AidlServiceManager> BackendUnifiedServiceManager::getImpl() {
-    return mTheRealServiceManager;
-}
-
 Status BackendUnifiedServiceManager::getService(const ::std::string& name,
                                                 sp<IBinder>* _aidl_return) {
     os::Service service;
