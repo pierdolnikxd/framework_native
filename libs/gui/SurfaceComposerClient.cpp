@@ -91,6 +91,7 @@ int64_t generateId() {
 }
 
 constexpr int64_t INVALID_VSYNC = -1;
+const constexpr char* LOG_SURFACE_CONTROL_REGISTRY = "SurfaceControlRegistry";
 
 } // namespace
 
@@ -872,6 +873,7 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     const bool earlyWakeupEnd = parcel->readBool();
     const int64_t desiredPresentTime = parcel->readInt64();
     const bool isAutoTimestamp = parcel->readBool();
+    const bool logCallPoints = parcel->readBool();
     FrameTimelineInfo frameTimelineInfo;
     frameTimelineInfo.readFromParcel(parcel);
 
@@ -999,6 +1001,7 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     parcel->writeBool(mEarlyWakeupEnd);
     parcel->writeInt64(mDesiredPresentTime);
     parcel->writeBool(mIsAutoTimestamp);
+    parcel->writeBool(mLogCallPoints);
     mFrameTimelineInfo.writeToParcel(parcel);
     parcel->writeStrongBinder(mApplyToken);
     parcel->writeUint32(static_cast<uint32_t>(mDisplayStates.size()));
@@ -1134,6 +1137,12 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
 
     mergeFrameTimelineInfo(mFrameTimelineInfo, other.mFrameTimelineInfo);
 
+    mLogCallPoints |= other.mLogCallPoints;
+    if (mLogCallPoints) {
+        ALOG(LOG_DEBUG, LOG_SURFACE_CONTROL_REGISTRY,
+             "Transaction %" PRIu64 " merged with transaction %" PRIu64, other.getId(), mId);
+    }
+
     other.clear();
     return *this;
 }
@@ -1153,6 +1162,7 @@ void SurfaceComposerClient::Transaction::clear() {
     mFrameTimelineInfo = {};
     mApplyToken = nullptr;
     mMergedTransactionIds.clear();
+    mLogCallPoints = false;
 }
 
 uint64_t SurfaceComposerClient::Transaction::getId() {
@@ -1360,6 +1370,10 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
         syncCallback->wait();
     }
 
+    if (mLogCallPoints) {
+        ALOG(LOG_DEBUG, LOG_SURFACE_CONTROL_REGISTRY, "Transaction %" PRIu64 " applied", mId);
+    }
+
     mStatus = NO_ERROR;
     return NO_ERROR;
 }
@@ -1390,6 +1404,11 @@ status_t SurfaceComposerClient::Transaction::sendSurfaceFlushJankDataTransaction
     t.registerSurfaceControlForCallback(sc);
     return t.apply(/*sync=*/false, /* oneWay=*/true);
 }
+
+void SurfaceComposerClient::Transaction::enableDebugLogCallPoints() {
+    mLogCallPoints = true;
+}
+
 // ---------------------------------------------------------------------------
 
 sp<IBinder> SurfaceComposerClient::createVirtualDisplay(const std::string& displayName,
