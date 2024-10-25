@@ -214,3 +214,13 @@ flag {
   description: "Set input device's power/wakeup sysfs node"
   bug: "372812925"
 }
+
+flag {
+  name: "enable_alphabetic_keyboard_wake"
+  namespace: "input"
+  description: "Enable wake from alphabetic keyboards."
+  bug: "352856881"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
