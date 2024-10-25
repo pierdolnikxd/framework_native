@@ -65,7 +65,7 @@ public:
 
 private:
     std::string dump() override { return ""; }
-    void move(float deltaX, float deltaY) override;
+    vec2 move(float deltaX, float deltaY) override;
     void unfade(Transition) override;
     void setPresentation(Presentation) override {}
     void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
