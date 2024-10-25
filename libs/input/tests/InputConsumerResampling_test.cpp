@@ -566,4 +566,32 @@ TEST_F(InputConsumerResamplingTest, OldEventReceivedAfterResampleOccurs) {
     mClientTestChannel->assertFinishMessage(/*seq=*/4, /*handled=*/true);
 }
 
+TEST_F(InputConsumerResamplingTest, DoNotResampleWhenFrameTimeIsNotAvailable) {
+    mClientTestChannel->enqueueMessage(nextPointerMessage(
+            {0ms, {Pointer{.id = 0, .x = 10.0f, .y = 20.0f}}, AMOTION_EVENT_ACTION_DOWN}));
+
+    invokeLooperCallback();
+    assertReceivedMotionEvent({InputEventEntry{0ms,
+                                               {Pointer{.id = 0, .x = 10.0f, .y = 20.0f}},
+                                               AMOTION_EVENT_ACTION_DOWN}});
+
+    mClientTestChannel->enqueueMessage(nextPointerMessage(
+            {10ms, {Pointer{.id = 0, .x = 20.0f, .y = 30.0f}}, AMOTION_EVENT_ACTION_MOVE}));
+    mClientTestChannel->enqueueMessage(nextPointerMessage(
+            {20ms, {Pointer{.id = 0, .x = 30.0f, .y = 30.0f}}, AMOTION_EVENT_ACTION_MOVE}));
+
+    invokeLooperCallback();
+    mConsumer->consumeBatchedInputEvents(std::nullopt);
+    assertReceivedMotionEvent({InputEventEntry{10ms,
+                                               {Pointer{.id = 0, .x = 20.0f, .y = 30.0f}},
+                                               AMOTION_EVENT_ACTION_MOVE},
+                               InputEventEntry{20ms,
+                                               {Pointer{.id = 0, .x = 30.0f, .y = 30.0f}},
+                                               AMOTION_EVENT_ACTION_MOVE}});
+
+    mClientTestChannel->assertFinishMessage(/*seq=*/1, /*handled=*/true);
+    mClientTestChannel->assertFinishMessage(/*seq=*/2, /*handled=*/true);
+    mClientTestChannel->assertFinishMessage(/*seq=*/3, /*handled=*/true);
+}
+
 } // namespace android
