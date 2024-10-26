@@ -137,19 +137,18 @@ struct InputReaderConfiguration {
     ui::LogicalDisplayId defaultPointerDisplayId;
 
     // The mouse pointer speed, as a number from -7 (slowest) to 7 (fastest).
-    //
-    // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
     int32_t mousePointerSpeed;
 
     // Displays on which an acceleration curve shouldn't be applied for pointer movements from mice.
-    //
-    // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
     std::set<ui::LogicalDisplayId> displaysWithMousePointerAccelerationDisabled;
 
-    // Velocity control parameters for mouse pointer movements.
+    // Velocity control parameters for touchpad pointer movements on the old touchpad stack (based
+    // on TouchInputMapper).
     //
-    // If the enable_new_mouse_pointer_ballistics flag is enabled, these are ignored and the values
-    // of mousePointerSpeed and mousePointerAccelerationEnabled used instead.
+    // For mice, these are ignored and the values of mousePointerSpeed and
+    // mousePointerAccelerationEnabled used instead.
+    //
+    // TODO(b/281840344): remove this.
     VelocityControlParameters pointerVelocityControlParameters;
 
     // Velocity control parameters for mouse wheel movements.

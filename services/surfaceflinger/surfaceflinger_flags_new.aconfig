@@ -82,6 +82,14 @@ flag {
 } # detached_mirror
 
 flag {
+  name: "display_config_error_hal"
+  namespace: "core_graphics"
+  description: "Report HAL display configuration errors like modeset failure or link training failure"
+  bug: "374184110"
+  is_fixed_read_only: true
+} # display_config_error_hal
+
+flag {
   name: "filter_frames_before_trace_starts"
   namespace: "core_graphics"
   description: "Do not trace FrameTimeline events for frames started before the trace started"

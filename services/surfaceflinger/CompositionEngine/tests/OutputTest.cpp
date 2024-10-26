@@ -40,8 +40,8 @@
 #include <common/FlagManager.h>
 #include <common/test/FlagUtils.h>
 #include "CallOrderStateMachineHelper.h"
-#include "MockHWC2.h"
 #include "RegionMatcher.h"
+#include "mock/DisplayHardware/MockHWC2.h"
 
 namespace android::compositionengine {
 namespace {
