@@ -325,6 +325,8 @@ private:
     std::unique_ptr<gui::BufferReleaseChannel::ConsumerEndpoint> mBufferReleaseConsumer;
     std::shared_ptr<gui::BufferReleaseChannel::ProducerEndpoint> mBufferReleaseProducer;
 
+    void drainBufferReleaseConsumer();
+
     class BufferReleaseReader {
     public:
         explicit BufferReleaseReader(BLASTBufferQueue&);
@@ -353,19 +355,6 @@ private:
     };
 
     std::optional<BufferReleaseReader> mBufferReleaseReader;
-
-    std::atomic<int> mThreadsBlockingOnDequeue = 0;
-
-    class BufferReleaseThread {
-    public:
-        BufferReleaseThread(const sp<BLASTBufferQueue>&);
-        ~BufferReleaseThread();
-
-    private:
-        int mEventFd;
-    };
-
-    std::optional<BufferReleaseThread> mBufferReleaseThread;
 #endif
 };
 
