@@ -32,7 +32,6 @@ using aidl::android::hardware::power::IPower;
 using aidl::android::hardware::power::IPowerHintSession;
 using aidl::android::hardware::power::SessionConfig;
 using aidl::android::hardware::power::SessionTag;
-using aidl::android::hardware::power::SupportInfo;
 
 using aidl::android::hardware::power::Mode;
 using android::binder::Status;
@@ -60,7 +59,6 @@ public:
     MOCK_METHOD(ndk::ScopedAStatus, getSessionChannel,
                 (int32_t tgid, int32_t uid, ChannelConfig* _aidl_return), (override));
     MOCK_METHOD(ndk::ScopedAStatus, closeSessionChannel, (int32_t tgid, int32_t uid), (override));
-    MOCK_METHOD(ndk::ScopedAStatus, getSupportInfo, (SupportInfo * _aidl_return), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getInterfaceVersion, (int32_t * version), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getInterfaceHash, (std::string * hash), (override));
     MOCK_METHOD(ndk::SpAIBinder, asBinder, (), (override));
