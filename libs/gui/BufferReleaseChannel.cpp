@@ -339,13 +339,6 @@ status_t BufferReleaseChannel::open(std::string name,
         return -errno;
     }
 
-    // Make the producer write-only
-    if (shutdown(producerFd.get(), SHUT_RD) == -1) {
-        ALOGE("[%s] Failed to shutdown reading on producer socket. errno=%d message='%s'",
-              name.c_str(), errno, strerror(errno));
-        return -errno;
-    }
-
     outConsumer = std::make_unique<ConsumerEndpoint>(name, std::move(consumerFd));
     outProducer = std::make_shared<ProducerEndpoint>(std::move(name), std::move(producerFd));
     return STATUS_OK;
