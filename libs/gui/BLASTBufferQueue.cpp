@@ -52,19 +52,18 @@ using namespace std::chrono_literals;
 namespace {
 
 #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
-// RAII wrapper to defer arbitrary work until the Deferred instance is deleted.
-template <class F>
-class Deferred {
+template <class Mutex>
+class UnlockGuard {
 public:
-    explicit Deferred(F f) : mF{std::move(f)} {}
+    explicit UnlockGuard(Mutex& lock) : mLock{lock} { mLock.unlock(); }
 
-    ~Deferred() { mF(); }
+    ~UnlockGuard() { mLock.lock(); }
 
-    Deferred(const Deferred&) = delete;
-    Deferred& operator=(const Deferred&) = delete;
+    UnlockGuard(const UnlockGuard&) = delete;
+    UnlockGuard& operator=(const UnlockGuard&) = delete;
 
 private:
-    F mF;
+    Mutex& mLock;
 };
 #endif
 
@@ -271,9 +270,6 @@ BLASTBufferQueue::~BLASTBufferQueue() {
 void BLASTBufferQueue::onFirstRef() {
     // safe default, most producers are expected to override this
     mProducer->setMaxDequeuedBufferCount(2);
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
-    mBufferReleaseThread.emplace(sp<BLASTBufferQueue>::fromExisting(this));
-#endif
 }
 
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
@@ -297,11 +293,16 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     mSurfaceControl = surface;
     SurfaceComposerClient::Transaction t;
     if (surfaceControlChanged) {
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
+        // SELinux policy may prevent this process from sending the BufferReleaseChannel's file
+        // descriptor to SurfaceFlinger, causing the entire transaction to be dropped. This
+        // transaction is applied separately to ensure we don't lose the other updates.
+        t.setApplyToken(mApplyToken)
+                .setBufferReleaseChannel(mSurfaceControl, mBufferReleaseProducer)
+                .apply(false /* synchronous */, true /* oneWay */);
+#endif
         t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
                    layer_state_t::eEnableBackpressure);
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
-        t.setBufferReleaseChannel(mSurfaceControl, mBufferReleaseProducer);
-#endif
         applyTransaction = true;
     }
     mTransformHint = mSurfaceControl->getTransformHint();
@@ -325,7 +326,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     }
     if (applyTransaction) {
         // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
-        t.setApplyToken(mApplyToken).apply(false, true);
+        t.setApplyToken(mApplyToken).apply(false /* synchronous */, true /* oneWay */);
     }
 }
 
@@ -419,7 +420,6 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                                     stat.latchTime,
                                                     stat.frameEventStats.dequeueReadyTime);
                 }
-#if !COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
                 auto currFrameNumber = stat.frameEventStats.frameNumber;
                 std::vector<ReleaseCallbackId> staleReleases;
                 for (const auto& [key, value]: mSubmitted) {
@@ -435,7 +435,6 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                                 stat.currentMaxAcquiredBufferCount,
                                                 true /* fakeRelease */);
                 }
-#endif
             } else {
                 BQA_LOGE("Failed to find matching SurfaceControl in transactionCallback");
             }
@@ -469,6 +468,9 @@ ReleaseBufferCallback BLASTBufferQueue::makeReleaseBufferCallbackThunk() {
             return;
         }
         bbq->releaseBufferCallback(id, releaseFence, currentMaxAcquiredBufferCount);
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
+        bbq->drainBufferReleaseConsumer();
+#endif
     };
 }
 
@@ -535,8 +537,6 @@ void BLASTBufferQueue::releaseBuffer(const ReleaseCallbackId& callbackId,
                                      const sp<Fence>& releaseFence) {
     auto it = mSubmitted.find(callbackId);
     if (it == mSubmitted.end()) {
-        BQA_LOGE("ERROR: releaseBufferCallback without corresponding submitted buffer %s",
-                 callbackId.to_string().c_str());
         return;
     }
     mNumAcquired--;
@@ -646,12 +646,7 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
                            bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
                            bufferItem.mScalingMode, crop);
 
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
-    ReleaseBufferCallback releaseBufferCallback =
-            applyTransaction ? nullptr : makeReleaseBufferCallbackThunk();
-#else
     auto releaseBufferCallback = makeReleaseBufferCallbackThunk();
-#endif
     sp<Fence> fence = bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE;
 
     nsecs_t dequeueTime = -1;
@@ -1230,12 +1225,7 @@ public:
         // we want to ignore it. This must be done before unlocking the BufferQueue lock to ensure
         // we don't miss an interrupt.
         bbq->mBufferReleaseReader->clearInterrupts();
-        bbq->mThreadsBlockingOnDequeue++;
-        bufferQueueLock.unlock();
-        Deferred cleanup{[&]() {
-            bufferQueueLock.lock();
-            bbq->mThreadsBlockingOnDequeue--;
-        }};
+        UnlockGuard unlockGuard{bufferQueueLock};
 
         ATRACE_FORMAT("waiting for free buffer");
         ReleaseCallbackId id;
@@ -1345,6 +1335,21 @@ void BLASTBufferQueue::setApplyToken(sp<IBinder> applyToken) {
 
 #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
 
+void BLASTBufferQueue::drainBufferReleaseConsumer() {
+    ATRACE_CALL();
+    while (true) {
+        ReleaseCallbackId id;
+        sp<Fence> fence;
+        uint32_t maxAcquiredBufferCount;
+        status_t status =
+                mBufferReleaseConsumer->readReleaseFence(id, fence, maxAcquiredBufferCount);
+        if (status != OK) {
+            return;
+        }
+        releaseBufferCallback(id, fence, maxAcquiredBufferCount);
+    }
+}
+
 BLASTBufferQueue::BufferReleaseReader::BufferReleaseReader(BLASTBufferQueue& bbq) : mBbq{bbq} {
     mEpollFd = android::base::unique_fd{epoll_create1(EPOLL_CLOEXEC)};
     LOG_ALWAYS_FATAL_IF(!mEpollFd.ok(),
@@ -1436,95 +1441,6 @@ void BLASTBufferQueue::BufferReleaseReader::clearInterrupts() {
     if (eventfd_read(mEventFd.get(), &value) == -1 && errno != EWOULDBLOCK) {
         ALOGE("error while reading from eventfd. errno=%d message='%s'", errno, strerror(errno));
     }
-}
-
-BLASTBufferQueue::BufferReleaseThread::BufferReleaseThread(const sp<BLASTBufferQueue>& bbq) {
-    android::base::unique_fd epollFd{epoll_create1(EPOLL_CLOEXEC)};
-    LOG_ALWAYS_FATAL_IF(!epollFd.ok(),
-                        "Failed to create buffer release background thread epoll file descriptor. "
-                        "errno=%d message='%s'",
-                        errno, strerror(errno));
-
-    epoll_event registerEndpointFd{};
-    registerEndpointFd.events = EPOLLIN;
-    registerEndpointFd.data.fd = bbq->mBufferReleaseConsumer->getFd();
-    status_t status = epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, bbq->mBufferReleaseConsumer->getFd(),
-                                &registerEndpointFd);
-    LOG_ALWAYS_FATAL_IF(status == -1,
-                        "Failed to register background thread buffer release consumer file "
-                        "descriptor with epoll. errno=%d message='%s'",
-                        errno, strerror(errno));
-
-    // EventFd is used to break the background thread's loop.
-    android::base::unique_fd eventFd{eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)};
-    LOG_ALWAYS_FATAL_IF(!eventFd.ok(),
-                        "Failed to create background thread buffer release event file descriptor. "
-                        "errno=%d message='%s'",
-                        errno, strerror(errno));
-
-    epoll_event registerEventFd{};
-    registerEventFd.events = EPOLLIN;
-    registerEventFd.data.fd = eventFd.get();
-    status = epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd.get(), &registerEventFd);
-    LOG_ALWAYS_FATAL_IF(status == -1,
-                        "Failed to register background thread event file descriptor with epoll. "
-                        "errno=%d message='%s'",
-                        errno, strerror(errno));
-
-    mEventFd = eventFd.get();
-
-    std::thread([epollFd = std::move(epollFd), eventFd = std::move(eventFd),
-                 weakBbq = wp<BLASTBufferQueue>(bbq)]() {
-        pthread_setname_np(pthread_self(), "BufferReleaseThread");
-        while (true) {
-            epoll_event event{};
-            int eventCount;
-            do {
-                eventCount = epoll_wait(epollFd.get(), &event, 1 /*maxevents*/, -1 /*timeout*/);
-            } while (eventCount == -1 && errno != EINTR);
-
-            if (eventCount == -1) {
-                ALOGE("epoll_wait error while waiting for buffer release in background thread. "
-                      "errno=%d message='%s'",
-                      errno, strerror(errno));
-                continue;
-            }
-
-            // EventFd is used to join this thread.
-            if (event.data.fd == eventFd.get()) {
-                return;
-            }
-
-            sp<BLASTBufferQueue> bbq = weakBbq.promote();
-            if (!bbq) {
-                return;
-            }
-
-            // If there are threads blocking on dequeue, give those threads priority for handling
-            // the release.
-            if (bbq->mThreadsBlockingOnDequeue > 0) {
-                std::this_thread::sleep_for(0ms);
-                continue;
-            }
-
-            ReleaseCallbackId id;
-            sp<Fence> fence;
-            uint32_t maxAcquiredBufferCount;
-            status_t status = bbq->mBufferReleaseConsumer->readReleaseFence(id, fence,
-                                                                            maxAcquiredBufferCount);
-            if (status != OK) {
-                ALOGE("failed to read from buffer release consumer in background thread. errno=%d "
-                      "message='%s'",
-                      errno, strerror(errno));
-                continue;
-            }
-            bbq->releaseBufferCallback(id, fence, maxAcquiredBufferCount);
-        }
-    }).detach();
-}
-
-BLASTBufferQueue::BufferReleaseThread::~BufferReleaseThread() {
-    eventfd_write(mEventFd, 1);
 }
 
 #endif
