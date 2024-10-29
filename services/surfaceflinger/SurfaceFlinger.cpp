@@ -1229,6 +1229,8 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
     const auto [normal, high] = display->refreshRateSelector().getFrameRateCategoryRates();
     ui::FrameRateCategoryRate frameRateCategoryRate(normal.getValue(), high.getValue());
     info->frameRateCategoryRate = frameRateCategoryRate;
+
+    info->supportedRefreshRates = display->refreshRateSelector().getSupportedFrameRates();
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
     info->hdrCapabilities = filterOut4k30(display->getHdrCapabilities());
 
@@ -8581,6 +8583,11 @@ void SurfaceComposerAIDL::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo& 
     gui::FrameRateCategoryRate& frameRateCategoryRate = outInfo->frameRateCategoryRate;
     frameRateCategoryRate.normal = info.frameRateCategoryRate.getNormal();
     frameRateCategoryRate.high = info.frameRateCategoryRate.getHigh();
+    outInfo->supportedRefreshRates.clear();
+    outInfo->supportedRefreshRates.reserve(info.supportedRefreshRates.size());
+    for (float supportedRefreshRate : info.supportedRefreshRates) {
+        outInfo->supportedRefreshRates.push_back(supportedRefreshRate);
+    }
 
     outInfo->supportedColorModes.clear();
     outInfo->supportedColorModes.reserve(info.supportedColorModes.size());
