@@ -183,20 +183,6 @@ public:
         return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
-    InputEvent* consumeEvent(std::chrono::milliseconds timeout = 3000ms) {
-        mClientChannel->waitForMessage(timeout);
-
-        InputEvent* ev;
-        uint32_t seqId;
-        status_t consumed = mInputConsumer->consume(&mInputEventFactory, true, -1, &seqId, &ev);
-        if (consumed != OK) {
-            return nullptr;
-        }
-        status_t status = mInputConsumer->sendFinishedSignal(seqId, true);
-        EXPECT_EQ(OK, status) << "Could not send finished signal";
-        return ev;
-    }
-
     void assertFocusChange(bool hasFocus) {
         InputEvent* ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
@@ -323,14 +309,30 @@ public:
     }
 
 public:
+    // But should be private
+    WindowInfo mInputInfo;
     sp<SurfaceControl> mSurfaceControl;
+
+private:
     std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 
-    WindowInfo mInputInfo;
-
     PreallocatedInputEventFactory mInputEventFactory;
     InputConsumer* mInputConsumer;
+
+    InputEvent* consumeEvent(std::chrono::milliseconds timeout = 3000ms) {
+        mClientChannel->waitForMessage(timeout);
+
+        InputEvent* ev;
+        uint32_t seqId;
+        status_t consumed = mInputConsumer->consume(&mInputEventFactory, true, -1, &seqId, &ev);
+        if (consumed != OK) {
+            return nullptr;
+        }
+        status_t status = mInputConsumer->sendFinishedSignal(seqId, true);
+        EXPECT_EQ(OK, status) << "Could not send finished signal";
+        return ev;
+    }
 };
 
 class BlastInputSurface : public InputSurface {
@@ -458,7 +460,7 @@ TEST_F(InputSurfacesTest, can_receive_input) {
 
     injectTap(101, 101);
 
-    EXPECT_NE(surface->consumeEvent(), nullptr);
+    surface->expectTap(1, 1);
 }
 
 /**
@@ -612,7 +614,7 @@ TEST_F(InputSurfacesTest, touchable_region) {
 
     // A tap within the surface but outside the touchable region should not be sent to the surface.
     injectTap(20, 30);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/200ms), nullptr);
+    surface->assertNoEvent();
 
     injectTap(31, 52);
     surface->expectTap(20, 30);
