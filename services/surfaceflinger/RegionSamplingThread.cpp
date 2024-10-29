@@ -354,14 +354,13 @@ void RegionSamplingThread::captureSample() {
                               RenderArea::Options::CAPTURE_SECURE_LAYERS);
 
     FenceResult fenceResult;
-    if (FlagManager::getInstance().single_hop_screenshot() &&
-        mFlinger.mRenderEngine->isThreaded()) {
-        std::vector<sp<LayerFE>> layerFEs;
-        auto displayState = mFlinger.getSnapshotsFromMainThread(renderAreaBuilder,
-                                                                getLayerSnapshotsFn, layerFEs);
+    if (FlagManager::getInstance().single_hop_screenshot()) {
+        std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
+        auto displayState =
+                mFlinger.getSnapshotsFromMainThread(renderAreaBuilder, getLayerSnapshotsFn, layers);
         fenceResult = mFlinger.captureScreenshot(renderAreaBuilder, buffer, kRegionSampling,
                                                  kGrayscale, kIsProtected, kAttachGainmap, nullptr,
-                                                 displayState, layerFEs)
+                                                 displayState, layers)
                               .get();
     } else {
         fenceResult = mFlinger.captureScreenshotLegacy(renderAreaBuilder, getLayerSnapshotsFn,
