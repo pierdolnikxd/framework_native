@@ -475,8 +475,7 @@ public:
 
         return mFlinger->renderScreenImpl(renderArea.get(), buffer, regionSampling,
                                           false /* grayscale */, false /* isProtected */,
-                                          false /* attachGainmap */, captureResults, displayState,
-                                          layers);
+                                          captureResults, displayState, layers);
     }
 
     auto getLayerSnapshotsForScreenshotsFn(ui::LayerStack layerStack, uint32_t uid) {

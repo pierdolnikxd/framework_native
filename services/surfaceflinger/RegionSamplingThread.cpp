@@ -353,21 +353,13 @@ void RegionSamplingThread::captureSample() {
                               sampledBounds.getSize(), ui::Dataspace::V0_SRGB, displayWeak,
                               RenderArea::Options::CAPTURE_SECURE_LAYERS);
 
-    FenceResult fenceResult;
-    if (FlagManager::getInstance().single_hop_screenshot()) {
-        std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
-        auto displayState =
-                mFlinger.getSnapshotsFromMainThread(renderAreaBuilder, getLayerSnapshotsFn, layers);
-        fenceResult = mFlinger.captureScreenshot(renderAreaBuilder, buffer, kRegionSampling,
-                                                 kGrayscale, kIsProtected, kAttachGainmap, nullptr,
-                                                 displayState, layers)
-                              .get();
-    } else {
-        fenceResult = mFlinger.captureScreenshotLegacy(renderAreaBuilder, getLayerSnapshotsFn,
-                                                       buffer, kRegionSampling, kGrayscale,
-                                                       kIsProtected, kAttachGainmap, nullptr)
-                              .get();
-    }
+    std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
+    auto displayState =
+            mFlinger.getSnapshotsFromMainThread(renderAreaBuilder, getLayerSnapshotsFn, layers);
+    FenceResult fenceResult =
+            mFlinger.captureScreenshot(renderAreaBuilder, buffer, kRegionSampling, kGrayscale,
+                                       kIsProtected, kAttachGainmap, nullptr, displayState, layers)
+                    .get();
     if (fenceResult.ok()) {
         fenceResult.value()->waitForever(LOG_TAG);
     }
