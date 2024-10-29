@@ -851,13 +851,14 @@ private:
     void attachReleaseFenceFutureToLayer(Layer* layer, LayerFE* layerFE, ui::LayerStack layerStack);
 
     // Checks if a protected layer exists in a list of layers.
-    bool layersHasProtectedLayer(const std::vector<sp<LayerFE>>& layers) const;
+    bool layersHasProtectedLayer(const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
 
     using OutputCompositionState = compositionengine::impl::OutputCompositionState;
 
     std::optional<OutputCompositionState> getSnapshotsFromMainThread(
             RenderAreaBuilderVariant& renderAreaBuilder,
-            GetLayerSnapshotsFunction getLayerSnapshotsFn, std::vector<sp<LayerFE>>& layerFEs);
+            GetLayerSnapshotsFunction getLayerSnapshotsFn,
+            std::vector<std::pair<Layer*, sp<LayerFE>>>& layers);
 
     void captureScreenCommon(RenderAreaBuilderVariant, GetLayerSnapshotsFunction,
                              ui::Size bufferSize, ui::PixelFormat, bool allowProtected,
@@ -866,32 +867,19 @@ private:
     std::optional<OutputCompositionState> getDisplayStateFromRenderAreaBuilder(
             RenderAreaBuilderVariant& renderAreaBuilder) REQUIRES(kMainThreadContext);
 
-    // Legacy layer raw pointer is not safe to access outside the main thread.
-    // Creates a new vector consisting only of LayerFEs, which can be safely
-    // accessed outside the main thread.
-    std::vector<sp<LayerFE>> extractLayerFEs(
-            const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
-
     ftl::SharedFuture<FenceResult> captureScreenshot(
             const RenderAreaBuilderVariant& renderAreaBuilder,
             const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
             bool grayscale, bool isProtected, bool attachGainmap,
             const sp<IScreenCaptureListener>& captureListener,
             std::optional<OutputCompositionState>& displayState,
-            std::vector<sp<LayerFE>>& layerFEs);
-
-    ftl::SharedFuture<FenceResult> captureScreenshotLegacy(
-            RenderAreaBuilderVariant, GetLayerSnapshotsFunction,
-            const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
-            bool grayscale, bool isProtected, bool attachGainmap,
-            const sp<IScreenCaptureListener>&);
+            std::vector<std::pair<Layer*, sp<LayerFE>>>& layers);
 
     ftl::SharedFuture<FenceResult> renderScreenImpl(
             const RenderArea*, const std::shared_ptr<renderengine::ExternalTexture>&,
-            bool regionSampling, bool grayscale, bool isProtected, bool attachGainmap,
-            ScreenCaptureResults&, std::optional<OutputCompositionState>& displayState,
-            std::vector<std::pair<Layer*, sp<LayerFE>>>& layers,
-            std::vector<sp<LayerFE>>& layerFEs);
+            bool regionSampling, bool grayscale, bool isProtected, ScreenCaptureResults&,
+            std::optional<OutputCompositionState>& displayState,
+            std::vector<std::pair<Layer*, sp<LayerFE>>>& layers);
 
     void readPersistentProperties();
 

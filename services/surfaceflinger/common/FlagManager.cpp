@@ -153,7 +153,6 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(override_trusted_overlay);
     DUMP_READ_ONLY_FLAG(flush_buffer_slots_to_uncache);
     DUMP_READ_ONLY_FLAG(force_compile_graphite_renderengine);
-    DUMP_READ_ONLY_FLAG(single_hop_screenshot);
     DUMP_READ_ONLY_FLAG(trace_frame_rate_override);
     DUMP_READ_ONLY_FLAG(true_hdr_screenshots);
     DUMP_READ_ONLY_FLAG(display_config_error_hal);
@@ -259,7 +258,6 @@ FLAG_MANAGER_READ_ONLY_FLAG(local_tonemap_screenshots, "debug.sf.local_tonemap_s
 FLAG_MANAGER_READ_ONLY_FLAG(override_trusted_overlay, "");
 FLAG_MANAGER_READ_ONLY_FLAG(flush_buffer_slots_to_uncache, "");
 FLAG_MANAGER_READ_ONLY_FLAG(force_compile_graphite_renderengine, "");
-FLAG_MANAGER_READ_ONLY_FLAG(single_hop_screenshot, "");
 FLAG_MANAGER_READ_ONLY_FLAG(true_hdr_screenshots, "debug.sf.true_hdr_screenshots");
 FLAG_MANAGER_READ_ONLY_FLAG(display_config_error_hal, "");
 
