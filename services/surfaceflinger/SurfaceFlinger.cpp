@@ -92,6 +92,7 @@
 #include <ui/DisplayStatInfo.h>
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
+#include <ui/FrameRateCategoryRate.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/HdrRenderTypeUtils.h>
 #include <ui/LayerStack.h>
@@ -1217,6 +1218,10 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
     info->activeDisplayModeId = ftl::to_underlying(mode.modePtr->getId());
     info->renderFrameRate = mode.fps.getValue();
     info->hasArrSupport = mode.modePtr->getVrrConfig() && FlagManager::getInstance().vrr_config();
+
+    const auto [normal, high] = display->refreshRateSelector().getFrameRateCategoryRates();
+    ui::FrameRateCategoryRate frameRateCategoryRate(normal.getValue(), high.getValue());
+    info->frameRateCategoryRate = frameRateCategoryRate;
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
     info->hdrCapabilities = filterOut4k30(display->getHdrCapabilities());
 
@@ -8496,6 +8501,9 @@ void SurfaceComposerAIDL::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo& 
     outInfo->activeDisplayModeId = info.activeDisplayModeId;
     outInfo->renderFrameRate = info.renderFrameRate;
     outInfo->hasArrSupport = info.hasArrSupport;
+    gui::FrameRateCategoryRate& frameRateCategoryRate = outInfo->frameRateCategoryRate;
+    frameRateCategoryRate.normal = info.frameRateCategoryRate.getNormal();
+    frameRateCategoryRate.high = info.frameRateCategoryRate.getHigh();
 
     outInfo->supportedColorModes.clear();
     outInfo->supportedColorModes.reserve(info.supportedColorModes.size());
