@@ -294,12 +294,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     SurfaceComposerClient::Transaction t;
     if (surfaceControlChanged) {
 #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
-        // SELinux policy may prevent this process from sending the BufferReleaseChannel's file
-        // descriptor to SurfaceFlinger, causing the entire transaction to be dropped. This
-        // transaction is applied separately to ensure we don't lose the other updates.
-        t.setApplyToken(mApplyToken)
-                .setBufferReleaseChannel(mSurfaceControl, mBufferReleaseProducer)
-                .apply(false /* synchronous */, true /* oneWay */);
+        updateBufferReleaseProducer();
 #endif
         t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
                    layer_state_t::eEnableBackpressure);
@@ -1334,6 +1329,20 @@ void BLASTBufferQueue::setApplyToken(sp<IBinder> applyToken) {
 }
 
 #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BUFFER_RELEASE_CHANNEL)
+
+void BLASTBufferQueue::updateBufferReleaseProducer() {
+    // SELinux policy may prevent this process from sending the BufferReleaseChannel's file
+    // descriptor to SurfaceFlinger, causing the entire transaction to be dropped. We send this
+    // transaction independently of any other updates to ensure those updates aren't lost.
+    SurfaceComposerClient::Transaction t;
+    status_t status = t.setApplyToken(mApplyToken)
+                              .setBufferReleaseChannel(mSurfaceControl, mBufferReleaseProducer)
+                              .apply(false /* synchronous */, true /* oneWay */);
+    if (status != OK) {
+        ALOGW("[%s] %s - failed to set buffer release channel on %s", mName.c_str(),
+              statusToString(status).c_str(), mSurfaceControl->getName().c_str());
+    }
+}
 
 void BLASTBufferQueue::drainBufferReleaseConsumer() {
     ATRACE_CALL();
