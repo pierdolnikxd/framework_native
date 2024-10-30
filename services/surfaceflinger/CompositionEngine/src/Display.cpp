@@ -54,6 +54,8 @@ Display::~Display() = default;
 void Display::setConfiguration(const compositionengine::DisplayCreationArgs& args) {
     mId = args.id;
     mPowerAdvisor = args.powerAdvisor;
+    mHasPictureProcessing = args.hasPictureProcessing;
+    mMaxLayerPictureProfiles = args.maxLayerPictureProfiles;
     editState().isSecure = args.isSecure;
     editState().isProtected = args.isProtected;
     editState().displaySpace.setBounds(args.pixels);
@@ -80,7 +82,7 @@ bool Display::isVirtual() const {
     return mId.isVirtual();
 }
 
-std::optional<DisplayId> Display::getDisplayId() const {
+ftl::Optional<DisplayId> Display::getDisplayId() const {
     return mId;
 }
 
@@ -203,15 +205,16 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
 }
 
 void Display::applyDisplayBrightness(bool applyImmediately) {
-    if (const auto displayId = ftl::Optional(getDisplayId()).and_then(PhysicalDisplayId::tryCast);
-        displayId && getState().displayBrightness) {
+    if (!getState().displayBrightness) {
+        return;
+    }
+    if (auto displayId = PhysicalDisplayId::tryCast(mId)) {
         auto& hwc = getCompositionEngine().getHwComposer();
-        const status_t result =
-                hwc.setDisplayBrightness(*displayId, *getState().displayBrightness,
-                                         getState().displayBrightnessNits,
-                                         Hwc2::Composer::DisplayBrightnessOptions{
-                                                 .applyImmediately = applyImmediately})
-                        .get();
+        status_t result = hwc.setDisplayBrightness(*displayId, *getState().displayBrightness,
+                                                   getState().displayBrightnessNits,
+                                                   Hwc2::Composer::DisplayBrightnessOptions{
+                                                           .applyImmediately = applyImmediately})
+                                  .get();
         ALOGE_IF(result != NO_ERROR, "setDisplayBrightness failed for %s: %d, (%s)",
                  getName().c_str(), result, strerror(-result));
     }
@@ -288,8 +291,8 @@ void Display::applyCompositionStrategy(const std::optional<DeviceRequestedChange
 }
 
 bool Display::getSkipColorTransform() const {
-    const auto& hwc = getCompositionEngine().getHwComposer();
-    if (const auto halDisplayId = HalDisplayId::tryCast(mId)) {
+    auto& hwc = getCompositionEngine().getHwComposer();
+    if (auto halDisplayId = HalDisplayId::tryCast(mId)) {
         return hwc.hasDisplayCapability(*halDisplayId,
                                         DisplayCapability::SKIP_CLIENT_COLOR_TRANSFORM);
     }
@@ -462,6 +465,14 @@ Display::getOverlaySupport() {
     return &getCompositionEngine().getHwComposer().getOverlaySupport();
 }
 
+bool Display::hasPictureProcessing() const {
+    return mHasPictureProcessing;
+}
+
+int32_t Display::getMaxLayerPictureProfiles() const {
+    return mMaxLayerPictureProfiles;
+}
+
 void Display::finishFrame(GpuCompositionResult&& result) {
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
@@ -476,8 +487,8 @@ void Display::finishFrame(GpuCompositionResult&& result) {
 }
 
 bool Display::supportsOffloadPresent() const {
-    if (const auto halDisplayId = HalDisplayId::tryCast(mId)) {
-        const auto& hwc = getCompositionEngine().getHwComposer();
+    if (auto halDisplayId = HalDisplayId::tryCast(mId)) {
+        auto& hwc = getCompositionEngine().getHwComposer();
         return hwc.hasDisplayCapability(*halDisplayId, DisplayCapability::MULTI_THREADED_PRESENT);
     }
 
