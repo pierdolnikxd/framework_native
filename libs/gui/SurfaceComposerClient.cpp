@@ -57,6 +57,7 @@
 #include <ui/DisplayMode.h>
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
+#include <ui/FrameRateCategoryRate.h>
 
 #include <android-base/thread_annotations.h>
 #include <gui/LayerStatePermissions.h>
@@ -2814,6 +2815,8 @@ void SurfaceComposerClient::getDynamicDisplayInfoInternal(gui::DynamicDisplayInf
     outInfo->gameContentTypeSupported = ginfo.gameContentTypeSupported;
     outInfo->preferredBootDisplayMode = ginfo.preferredBootDisplayMode;
     outInfo->hasArrSupport = ginfo.hasArrSupport;
+    outInfo->frameRateCategoryRate = ui::FrameRateCategoryRate(ginfo.frameRateCategoryRate.normal,
+                                                               ginfo.frameRateCategoryRate.high);
 }
 
 status_t SurfaceComposerClient::getDynamicDisplayInfoFromId(int64_t displayId,
