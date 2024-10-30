@@ -286,6 +286,8 @@ struct DisplayDeviceState {
     bool isProtected = false;
     // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
     Fps requestedRefreshRate;
+    int32_t maxLayerPictureProfiles = 0;
+    bool hasPictureProcessing = false;
 
 private:
     static std::atomic<int32_t> sNextSequenceId;
