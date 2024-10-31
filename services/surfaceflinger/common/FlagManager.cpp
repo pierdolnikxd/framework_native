@@ -139,6 +139,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(vrr_bugfix_dropped_frame);
     DUMP_READ_ONLY_FLAG(restore_blur_step);
     DUMP_READ_ONLY_FLAG(dont_skip_on_early_ro);
+    DUMP_READ_ONLY_FLAG(no_vsyncs_on_screen_off);
     DUMP_READ_ONLY_FLAG(protected_if_client);
     DUMP_READ_ONLY_FLAG(idle_screen_refresh_rate_timeout);
     DUMP_READ_ONLY_FLAG(graphite_renderengine);
@@ -244,6 +245,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(vulkan_renderengine, "debug.renderengine.vulkan")
 FLAG_MANAGER_READ_ONLY_FLAG(renderable_buffer_usage, "")
 FLAG_MANAGER_READ_ONLY_FLAG(restore_blur_step, "debug.renderengine.restore_blur_step")
 FLAG_MANAGER_READ_ONLY_FLAG(dont_skip_on_early_ro, "")
+FLAG_MANAGER_READ_ONLY_FLAG(no_vsyncs_on_screen_off, "debug.sf.no_vsyncs_on_screen_off")
 FLAG_MANAGER_READ_ONLY_FLAG(protected_if_client, "")
 FLAG_MANAGER_READ_ONLY_FLAG(vrr_bugfix_24q4, "");
 FLAG_MANAGER_READ_ONLY_FLAG(vrr_bugfix_dropped_frame, "")
