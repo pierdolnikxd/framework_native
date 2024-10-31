@@ -57,6 +57,14 @@ flag {
 } # commit_not_composited
 
 flag {
+  name: "connected_display_hdr"
+  namespace: "core_graphics"
+  description: "enable connected display hdr capability"
+  bug: "374182788"
+  is_fixed_read_only: true
+} # connected_display_hdr
+
+flag {
   name: "correct_dpi_with_display_size"
   namespace: "core_graphics"
   description: "indicate whether missing or likely incorrect dpi should be corrected using the display size."
