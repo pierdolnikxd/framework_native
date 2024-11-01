@@ -1411,6 +1411,11 @@ private:
     // Whether a display should be turned on when initialized
     bool mSkipPowerOnForQuiescent;
 
+    // used for omitting vsync callbacks to apps when the display is not updatable
+    int mRefreshableDisplays GUARDED_BY(mStateLock) = 0;
+    void incRefreshableDisplays() REQUIRES(mStateLock);
+    void decRefreshableDisplays() REQUIRES(mStateLock);
+
     frontend::LayerLifecycleManager mLayerLifecycleManager GUARDED_BY(kMainThreadContext);
     frontend::LayerHierarchyBuilder mLayerHierarchyBuilder GUARDED_BY(kMainThreadContext);
     frontend::LayerSnapshotBuilder mLayerSnapshotBuilder GUARDED_BY(kMainThreadContext);

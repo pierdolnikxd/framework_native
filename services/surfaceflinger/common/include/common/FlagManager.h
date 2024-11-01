@@ -77,6 +77,7 @@ public:
     bool renderable_buffer_usage() const;
     bool restore_blur_step() const;
     bool dont_skip_on_early_ro() const;
+    bool no_vsyncs_on_screen_off() const;
     bool protected_if_client() const;
     bool idle_screen_refresh_rate_timeout() const;
     bool graphite_renderengine() const;

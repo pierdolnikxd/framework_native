@@ -3665,6 +3665,26 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     return display;
 }
 
+void SurfaceFlinger::incRefreshableDisplays() {
+    if (FlagManager::getInstance().no_vsyncs_on_screen_off()) {
+        mRefreshableDisplays++;
+        if (mRefreshableDisplays == 1) {
+            ftl::FakeGuard guard(kMainThreadContext);
+            mScheduler->omitVsyncDispatching(false);
+        }
+    }
+}
+
+void SurfaceFlinger::decRefreshableDisplays() {
+    if (FlagManager::getInstance().no_vsyncs_on_screen_off()) {
+        mRefreshableDisplays--;
+        if (mRefreshableDisplays == 0) {
+            ftl::FakeGuard guard(kMainThreadContext);
+            mScheduler->omitVsyncDispatching(true);
+        }
+    }
+}
+
 void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
                                          const DisplayDeviceState& state) {
     ui::Size resolution(0, 0);
@@ -3756,6 +3776,10 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         display->adjustRefreshRate(mScheduler->getPacesetterRefreshRate());
     }
 
+    if (display->isRefreshable()) {
+        incRefreshableDisplays();
+    }
+
     mDisplays.try_emplace(displayToken, std::move(display));
 
     // For an external display, loadDisplayModes already attempted to select the same mode
@@ -3790,6 +3814,10 @@ void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
         } else {
             mScheduler->unregisterDisplay(display->getPhysicalId(), mActiveDisplayId);
         }
+
+        if (display->isRefreshable()) {
+            decRefreshableDisplays();
+        }
     }
 
     mDisplays.erase(displayToken);
@@ -3823,6 +3851,10 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             display->disconnect();
             if (display->isVirtual()) {
                 releaseVirtualDisplay(display->getVirtualId());
+            }
+
+            if (display->isRefreshable()) {
+                decRefreshableDisplays();
             }
         }
 
@@ -5322,7 +5354,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
                      activeDisplay->isPoweredOn(),
              "Trying to change power mode on inactive display without powering off active display");
 
+    const bool couldRefresh = display->isRefreshable();
     display->setPowerMode(mode);
+    const bool canRefresh = display->isRefreshable();
+
+    if (couldRefresh && !canRefresh) {
+        decRefreshableDisplays();
+    } else if (!couldRefresh && canRefresh) {
+        incRefreshableDisplays();
+    }
 
     const auto activeMode = display->refreshRateSelector().getActiveMode().modePtr;
     if (currentMode == hal::PowerMode::OFF) {
