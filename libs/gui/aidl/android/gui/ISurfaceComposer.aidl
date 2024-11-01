@@ -33,6 +33,7 @@ import android.gui.FrameEvent;
 import android.gui.FrameStats;
 import android.gui.HdrConversionCapability;
 import android.gui.HdrConversionStrategy;
+import android.gui.IActivePictureListener;
 import android.gui.IDisplayEventConnection;
 import android.gui.IFpsListener;
 import android.gui.IHdrLayerInfoListener;
@@ -599,4 +600,10 @@ interface ISurfaceComposer {
      * past the provided VSync.
      */
     oneway void removeJankListener(int layerId, IJankListener listener, long afterVsync);
+
+    /**
+     * Sets the listener used to monitor visible content that is being processed with picture
+     * profiles.
+     */
+    oneway void setActivePictureListener(IActivePictureListener listener);
 }

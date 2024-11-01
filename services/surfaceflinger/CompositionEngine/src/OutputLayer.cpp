@@ -432,7 +432,7 @@ void OutputLayer::commitPictureProfileToCompositionState() {
     }
     const auto* layerState = getLayerFE().getCompositionState();
     if (layerState) {
-        editState().pictureProfileHandle = getLayerFE().getCompositionState()->pictureProfileHandle;
+        editState().pictureProfileHandle = layerState->pictureProfileHandle;
     }
 }
 

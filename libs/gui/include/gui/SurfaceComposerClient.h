@@ -298,6 +298,8 @@ public:
     static status_t removeHdrLayerInfoListener(const sp<IBinder>& displayToken,
                                                const sp<gui::IHdrLayerInfoListener>& listener);
 
+    static status_t setActivePictureListener(const sp<gui::IActivePictureListener>& listener);
+
     /*
      * Sends a power boost to the composer. This function is asynchronous.
      *

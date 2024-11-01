@@ -3280,6 +3280,13 @@ status_t SurfaceComposerClient::removeHdrLayerInfoListener(
     return statusTFromBinderStatus(status);
 }
 
+status_t SurfaceComposerClient::setActivePictureListener(
+        const sp<gui::IActivePictureListener>& listener) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->setActivePictureListener(listener);
+    return statusTFromBinderStatus(status);
+}
+
 status_t SurfaceComposerClient::notifyPowerBoost(int32_t boostId) {
     binder::Status status = ComposerServiceAIDL::getComposerService()->notifyPowerBoost(boostId);
     return statusTFromBinderStatus(status);

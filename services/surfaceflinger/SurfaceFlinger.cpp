@@ -126,6 +126,7 @@
 #include <gui/SchedulingPolicy.h>
 #include <gui/SyncScreenCaptureListener.h>
 #include <ui/DisplayIdentification.h>
+#include "ActivePictureUpdater.h"
 #include "BackgroundExecutor.h"
 #include "Client.h"
 #include "ClientCache.h"
@@ -372,6 +373,7 @@ const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER"
 const String16 sRotateSurfaceFlinger("android.permission.ROTATE_SURFACE_FLINGER");
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sControlDisplayBrightness("android.permission.CONTROL_DISPLAY_BRIGHTNESS");
+const String16 sObservePictureProfiles("android.permission.OBSERVE_PICTURE_PROFILES");
 const String16 sDump("android.permission.DUMP");
 const String16 sCaptureBlackoutContent("android.permission.CAPTURE_BLACKOUT_CONTENT");
 const String16 sInternalSystemWindow("android.permission.INTERNAL_SYSTEM_WINDOW");
@@ -2851,6 +2853,9 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
         if (compositionResult.lastClientCompositionFence) {
             layer->setWasClientComposed(compositionResult.lastClientCompositionFence);
         }
+        if (com_android_graphics_libgui_flags_apply_picture_profiles()) {
+            mActivePictureUpdater.onLayerComposed(*layer, *layerFE, compositionResult);
+        }
     }
 
     SFTRACE_NAME("postComposition");
@@ -3146,30 +3151,6 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
         layer->releasePendingBuffer(presentTime.ns());
     }
 
-    std::vector<std::pair<std::shared_ptr<compositionengine::Display>, sp<HdrLayerInfoReporter>>>
-            hdrInfoListeners;
-    bool haveNewListeners = false;
-    {
-        Mutex::Autolock lock(mStateLock);
-        if (mFpsReporter) {
-            mFpsReporter->dispatchLayerFps(mLayerHierarchyBuilder.getHierarchy());
-        }
-
-        if (mTunnelModeEnabledReporter) {
-            mTunnelModeEnabledReporter->updateTunnelModeStatus();
-        }
-        hdrInfoListeners.reserve(mHdrLayerInfoListeners.size());
-        for (const auto& [displayId, reporter] : mHdrLayerInfoListeners) {
-            if (reporter && reporter->hasListeners()) {
-                if (const auto display = getDisplayDeviceLocked(displayId)) {
-                    hdrInfoListeners.emplace_back(display->getCompositionDisplay(), reporter);
-                }
-            }
-        }
-        haveNewListeners = mAddingHDRLayerInfoListener; // grab this with state lock
-        mAddingHDRLayerInfoListener = false;
-    }
-
     for (const auto& layerEvent : mLayerEvents) {
         auto result =
                 stats::stats_write(stats::SURFACE_CONTROL_EVENT,
@@ -3180,10 +3161,40 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
             ALOGW("Failed to report layer event with error: %d", result);
         }
     }
-
     mLayerEvents.clear();
 
-    if (haveNewListeners || mHdrLayerInfoChanged) {
+    std::vector<std::pair<std::shared_ptr<compositionengine::Display>, sp<HdrLayerInfoReporter>>>
+            hdrInfoListeners;
+    bool haveNewHdrInfoListeners = false;
+    sp<gui::IActivePictureListener> activePictureListener;
+    bool haveNewActivePictureListener = false;
+    {
+        Mutex::Autolock lock(mStateLock);
+        if (mFpsReporter) {
+            mFpsReporter->dispatchLayerFps(mLayerHierarchyBuilder.getHierarchy());
+        }
+
+        if (mTunnelModeEnabledReporter) {
+            mTunnelModeEnabledReporter->updateTunnelModeStatus();
+        }
+
+        hdrInfoListeners.reserve(mHdrLayerInfoListeners.size());
+        for (const auto& [displayId, reporter] : mHdrLayerInfoListeners) {
+            if (reporter && reporter->hasListeners()) {
+                if (const auto display = getDisplayDeviceLocked(displayId)) {
+                    hdrInfoListeners.emplace_back(display->getCompositionDisplay(), reporter);
+                }
+            }
+        }
+        haveNewHdrInfoListeners = mAddingHDRLayerInfoListener; // grab this with state lock
+        mAddingHDRLayerInfoListener = false;
+
+        activePictureListener = mActivePictureListener;
+        haveNewActivePictureListener = mHaveNewActivePictureListener;
+        mHaveNewActivePictureListener = false;
+    }
+
+    if (haveNewHdrInfoListeners || mHdrLayerInfoChanged) {
         for (auto& [compositionDisplay, listener] : hdrInfoListeners) {
             HdrLayerInfoReporter::HdrLayerInfo info;
             int32_t maxArea = 0;
@@ -3233,8 +3244,18 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
             listener->dispatchHdrLayerInfo(info);
         }
     }
-
     mHdrLayerInfoChanged = false;
+
+    if (com_android_graphics_libgui_flags_apply_picture_profiles()) {
+        // Track, update and notify changes to active pictures - layers that are undergoing picture
+        // processing
+        if (mActivePictureUpdater.updateAndHasChanged() || haveNewActivePictureListener) {
+            if (activePictureListener) {
+                activePictureListener->onActivePicturesChanged(
+                        mActivePictureUpdater.getActivePictures());
+            }
+        }
+    }
 
     mTransactionCallbackInvoker.sendCallbacks(false /* onCommitOnly */);
     mTransactionCallbackInvoker.clearCompletedTransactions();
@@ -8073,6 +8094,14 @@ void SurfaceFlinger::updateHdcpLevels(hal::HWDisplayId hwcDisplayId, int32_t con
     }));
 }
 
+void SurfaceFlinger::setActivePictureListener(const sp<gui::IActivePictureListener>& listener) {
+    if (com_android_graphics_libgui_flags_apply_picture_profiles()) {
+        Mutex::Autolock lock(mStateLock);
+        mActivePictureListener = listener;
+        mHaveNewActivePictureListener = listener != nullptr;
+    }
+}
+
 std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextureFromBufferData(
         BufferData& bufferData, const char* layerName, uint64_t transactionId) {
     if (bufferData.buffer &&
@@ -9008,6 +9037,15 @@ binder::Status SurfaceComposerAIDL::removeHdrLayerInfoListener(
     return binderStatusFromStatusT(status);
 }
 
+binder::Status SurfaceComposerAIDL::setActivePictureListener(
+        const sp<gui::IActivePictureListener>& listener) {
+    status_t status = checkObservePictureProfilesPermission();
+    if (status == OK) {
+        mFlinger->setActivePictureListener(listener);
+    }
+    return binderStatusFromStatusT(status);
+}
+
 binder::Status SurfaceComposerAIDL::notifyPowerBoost(int boostId) {
     status_t status = checkAccessPermission();
     if (status == OK) {
@@ -9258,6 +9296,17 @@ status_t SurfaceComposerAIDL::checkReadFrameBufferPermission() {
     const int uid = ipc->getCallingUid();
     if ((uid != AID_GRAPHICS) && !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
         ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+    return OK;
+}
+
+status_t SurfaceComposerAIDL::checkObservePictureProfilesPermission() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if (!PermissionCache::checkPermission(sObservePictureProfiles, pid, uid)) {
+        ALOGE("Permission Denial: can't manage picture profiles pid=%d, uid=%d", pid, uid);
         return PERMISSION_DENIED;
     }
     return OK;
