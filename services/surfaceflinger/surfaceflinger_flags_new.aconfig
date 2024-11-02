@@ -166,6 +166,14 @@ flag {
 } # local_tonemap_screenshots
 
 flag {
+  name: "no_vsyncs_on_screen_off"
+  namespace: "core_graphics"
+  description: "Stop vsync / Choreographer callbacks to apps when the screen is off"
+  bug: "331636736"
+  is_fixed_read_only: true
+} # no_vsyncs_on_screen_off
+
+flag {
   name: "single_hop_screenshot"
   namespace: "window_surfaces"
   description: "Only access SF main thread once during a screenshot"
