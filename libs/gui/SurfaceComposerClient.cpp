@@ -2129,13 +2129,13 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::notifyPr
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInputWindowInfo(
-        const sp<SurfaceControl>& sc, const WindowInfo& info) {
+        const sp<SurfaceControl>& sc, sp<WindowInfoHandle> info) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->windowInfoHandle = new WindowInfoHandle(info);
+    s->windowInfoHandle = std::move(info);
     s->what |= layer_state_t::eInputInfoChanged;
     return *this;
 }
