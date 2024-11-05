@@ -49,9 +49,7 @@ cc_defaults {
         "libaidlcommonsupport",
         "libprocessgroup",
         "libprocessgroup_util",
-        "libcgrouprc",
         "libjsoncpp",
-        "libcgrouprc_format",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
