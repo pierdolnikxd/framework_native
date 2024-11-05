@@ -1241,7 +1241,6 @@ private:
     // latched.
     std::unordered_set<std::pair<sp<Layer>, gui::GameMode>, LayerIntHash> mLayersWithQueuedFrames;
     std::unordered_set<sp<Layer>, SpHash<Layer>> mLayersWithBuffersRemoved;
-    std::unordered_set<uint32_t> mLayersIdsWithQueuedFrames;
 
     // Sorted list of layers that were composed during previous frame. This is used to
     // avoid an expensive traversal of the layer hierarchy when there are no

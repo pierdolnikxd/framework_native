@@ -2532,17 +2532,13 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
         frontend::LayerSnapshot* snapshot = mLayerSnapshotBuilder.getSnapshot(it->second->sequence);
         gui::GameMode gameMode = (snapshot) ? snapshot->gameMode : gui::GameMode::Unsupported;
         mLayersWithQueuedFrames.emplace(it->second, gameMode);
-        mLayersIdsWithQueuedFrames.emplace(it->second->sequence);
     }
 
     updateLayerHistory(latchTime);
     mLayerSnapshotBuilder.forEachSnapshot([&](const frontend::LayerSnapshot& snapshot) {
-        // update output dirty region if we have a queued buffer that is visible or a snapshot
-        // recently became invisible
-        // TODO(b/360050020) investigate if we need to update dirty region when layer color changes
-        if ((snapshot.isVisible &&
-             (mLayersIdsWithQueuedFrames.find(snapshot.path.id) !=
-              mLayersIdsWithQueuedFrames.end())) ||
+        // update output's dirty region if a snapshot is visible and its
+        // content is dirty or if a snapshot recently became invisible
+        if ((snapshot.isVisible && snapshot.contentDirty) ||
             (!snapshot.isVisible && snapshot.changes.test(Changes::Visibility))) {
             Region visibleReg;
             visibleReg.set(snapshot.transformedBoundsWithoutTransparentRegion);
@@ -2932,7 +2928,6 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     mScheduler->modulateVsync({}, &VsyncModulator::onDisplayRefresh, hasGpuUseOrReuse);
 
     mLayersWithQueuedFrames.clear();
-    mLayersIdsWithQueuedFrames.clear();
     doActiveLayersTracingIfNeeded(true, mVisibleRegionsDirty, pacesetterTarget.frameBeginTime(),
                                   vsyncId);
 
