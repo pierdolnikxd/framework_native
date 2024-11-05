@@ -437,6 +437,8 @@ public:
         static void mergeFrameTimelineInfo(FrameTimelineInfo& t, const FrameTimelineInfo& other);
         // Tracks registered callbacks
         sp<TransactionCompletedListener> mTransactionCompletedListener = nullptr;
+        // Prints debug logs when enabled.
+        bool mLogCallPoints = false;
 
     protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
@@ -809,6 +811,7 @@ public:
         static void setDefaultApplyToken(sp<IBinder> applyToken);
 
         static status_t sendSurfaceFlushJankDataTransaction(const sp<SurfaceControl>& sc);
+        void enableDebugLogCallPoints();
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
