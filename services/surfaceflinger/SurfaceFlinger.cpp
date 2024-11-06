@@ -1010,7 +1010,8 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
             config.cacheUltraHDR =
                     base::GetBoolProperty("ro.surface_flinger.prime_shader_cache.ultrahdr"s, false);
             config.cacheEdgeExtension =
-                    base::GetBoolProperty("debug.sf.edge_extension_shader"s, true);
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.edge_extension_shader"s,
+                                          true);
             return getRenderEngine().primeCache(config);
         });
 

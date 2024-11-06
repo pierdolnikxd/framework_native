@@ -1116,6 +1116,8 @@ TEST_F(InputSurfacesTest, cropped_container_replaces_touchable_region_with_null_
  * in its parent's touchable region. The input events should be in the layer's coordinate space.
  */
 TEST_F(InputSurfacesTest, uncropped_container_replaces_touchable_region_with_null_crop) {
+    std::unique_ptr<InputSurface> bgContainer =
+            InputSurface::makeContainerInputSurface(mComposerClient, 0, 0);
     std::unique_ptr<InputSurface> parentContainer =
             InputSurface::makeContainerInputSurface(mComposerClient, 0, 0);
     std::unique_ptr<InputSurface> containerSurface =
@@ -1124,6 +1126,9 @@ TEST_F(InputSurfacesTest, uncropped_container_replaces_touchable_region_with_nul
             [&](auto& t, auto& sc) { t.reparent(sc, parentContainer->mSurfaceControl); });
     containerSurface->mInputInfo.replaceTouchableRegionWithCrop = true;
     containerSurface->mInputInfo.touchableRegionCropHandle = nullptr;
+    parentContainer->doTransaction(
+            [&](auto& t, auto& sc) { t.reparent(sc, bgContainer->mSurfaceControl); });
+    bgContainer->showAt(0, 0, Rect(0, 0, 100, 100));
     parentContainer->showAt(10, 10, Rect(0, 0, 20, 20));
     containerSurface->showAt(10, 10, Rect::INVALID_RECT);
 
