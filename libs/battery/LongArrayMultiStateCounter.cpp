@@ -46,9 +46,12 @@ Uint64ArrayRW &Uint64ArrayRW::operator=(const Uint64Array &t) {
     }
     if (mSize != 0) {
         if (t.data() != nullptr) {
-            mData = new uint64_t[mSize];
+            if (mData == nullptr) {
+                mData = new uint64_t[mSize];
+            }
             memcpy(mData, t.data(), mSize * sizeof(uint64_t));
         } else {
+            delete[] mData;
             mData = nullptr;
         }
     }
