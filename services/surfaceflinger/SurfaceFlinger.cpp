@@ -1354,7 +1354,8 @@ void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& desiredMode) {
             mScheduler->updatePhaseConfiguration(displayId, mode.fps);
 
             if (emitEvent) {
-                mScheduler->onDisplayModeChanged(displayId, mode);
+                mScheduler->onDisplayModeChanged(displayId, mode,
+                                                 /*clearContentRequirements*/ false);
             }
             break;
         case DesiredModeAction::None:
@@ -1449,7 +1450,7 @@ void SurfaceFlinger::finalizeDisplayModeChange(PhysicalDisplayId displayId) {
     mScheduler->updatePhaseConfiguration(displayId, activeMode.fps);
 
     if (pendingModeOpt->emitEvent) {
-        mScheduler->onDisplayModeChanged(displayId, activeMode);
+        mScheduler->onDisplayModeChanged(displayId, activeMode, /*clearContentRequirements*/ true);
     }
 }
 
@@ -7649,7 +7650,8 @@ status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
     ALOGV("Setting desired display mode specs: %s", currentPolicy.toString().c_str());
 
     if (const bool isPacesetter =
-                mScheduler->onDisplayModeChanged(displayId, selector.getActiveMode())) {
+                mScheduler->onDisplayModeChanged(displayId, selector.getActiveMode(),
+                                                 /*clearContentRequirements*/ true)) {
         mDisplayModeController.updateKernelIdleTimer(displayId);
     }
 
