@@ -4021,7 +4021,8 @@ void SurfaceFlinger::updateInputFlinger(VsyncId vsyncId, TimePoint frameTime) {
                                                       inputWindowCommands =
                                                               std::move(mInputWindowCommands),
                                                       inputFlinger = mInputFlinger, this,
-                                                      visibleWindowsChanged, vsyncId, frameTime]() {
+                                                      visibleWindowsChanged, vsyncId,
+                                                      frameTime]() mutable {
         SFTRACE_NAME("BackgroundExecutor::updateInputFlinger");
         if (updateWindowInfo) {
             mWindowInfosListenerInvoker
