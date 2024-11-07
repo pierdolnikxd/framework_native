@@ -42,7 +42,6 @@
 
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
-#include "DisplayHardware/PowerAdvisor.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "ThreadContext.h"

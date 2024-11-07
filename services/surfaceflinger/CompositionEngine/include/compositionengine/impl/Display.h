@@ -30,7 +30,7 @@
 #include <ui/DisplayIdentification.h>
 
 #include "DisplayHardware/HWComposer.h"
-#include "DisplayHardware/PowerAdvisor.h"
+#include "PowerAdvisor/PowerAdvisor.h"
 
 namespace android::compositionengine {
 
@@ -102,7 +102,7 @@ private:
     void setHintSessionRequiresRenderEngine(bool requiresRenderEngine) override;
     DisplayId mId;
     bool mIsDisconnected = false;
-    Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
+    adpf::PowerAdvisor* mPowerAdvisor = nullptr;
     const aidl::android::hardware::graphics::composer3::OverlayProperties* getOverlaySupport()
             override;
 };
