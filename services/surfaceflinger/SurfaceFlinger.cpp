@@ -1532,9 +1532,15 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
         constraints.seamlessRequired = false;
         hal::VsyncPeriodChangeTimeline outTimeline;
 
-        if (mDisplayModeController.initiateModeChange(displayId, std::move(*desiredModeOpt),
-                                                      constraints, outTimeline) !=
-            display::DisplayModeController::ModeChangeResult::Changed) {
+        const auto error =
+                mDisplayModeController.initiateModeChange(displayId, std::move(*desiredModeOpt),
+                                                          constraints, outTimeline);
+        if (error != display::DisplayModeController::ModeChangeResult::Changed) {
+            dropModeRequest(displayId);
+            if (FlagManager::getInstance().display_config_error_hal() &&
+                error == display::DisplayModeController::ModeChangeResult::Rejected) {
+                mScheduler->onDisplayModeRejected(displayId, desiredModeId);
+            }
             continue;
         }
 
