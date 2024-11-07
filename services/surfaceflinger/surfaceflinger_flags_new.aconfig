@@ -19,6 +19,14 @@ flag {
 } # adpf_gpu_sf
 
 flag {
+  name: "apply_picture_profiles_sf"
+  namespace: "tv_os_media"
+  description: "SurfaceFlinger applies picture profile requests and sends them to Composer HAL"
+  bug: "337330263"
+  is_fixed_read_only: true
+} # apply_picture_profiles_sf
+
+flag {
   name: "arr_setframerate_api"
   namespace: "core_graphics"
   description: "New SDK Surface#setFrameRate API and Surface.FrameRateParams for Android 16"

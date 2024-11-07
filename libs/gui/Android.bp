@@ -341,6 +341,10 @@ cc_library_shared {
         "libgui_aidl_headers",
     ],
 
+    static_libs: [
+        "libsurfaceflingerflags",
+    ],
+
     afdo: true,
 
     lto: {
