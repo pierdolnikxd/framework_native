@@ -246,11 +246,8 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
 
                 ALOGV("INIT: Entry %u is good, tracking it now.", entryHash);
 
-                // Track details for rapid lookup later
+                // Track details for rapid lookup later and update total size
                 trackEntry(entryHash, header.valueSize, fileSize, st.st_atime);
-
-                // Track the total size
-                increaseTotalCacheSize(fileSize);
 
                 // Preload the entry for fast retrieval
                 if ((mHotCacheSize + fileSize) < mHotCacheLimit) {
@@ -326,6 +323,15 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
     // Generate a hash of the key and use it to track this entry
     uint32_t entryHash = android::JenkinsHashMixBytes(0, static_cast<const uint8_t*>(key), keySize);
 
+    // See if we already have this file
+    if (flags::multifile_blobcache_advanced_usage() && contains(entryHash)) {
+        // Remove previous entry from hot cache
+        removeFromHotCache(entryHash);
+
+        // Remove previous entry and update the overall cache size
+        removeEntry(entryHash);
+    }
+
     size_t fileSize = sizeof(MultifileHeader) + keySize + valueSize;
 
     // If we're going to be over the cache limit, kick off a trim to clear space
@@ -350,11 +356,8 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
     std::string fullPath = mMultifileDirName + "/" + std::to_string(entryHash);
 
-    // Track the size and access time for quick recall
+    // Track the size and access time for quick recall and update the overall cache size
     trackEntry(entryHash, valueSize, fileSize, time(0));
-
-    // Update the overall cache size
-    increaseTotalCacheSize(fileSize);
 
     // Keep the entry in hot cache for quick retrieval
     ALOGV("SET: Adding %u to hot cache.", entryHash);
@@ -638,6 +641,27 @@ void MultifileBlobCache::trackEntry(uint32_t entryHash, EGLsizeiANDROID valueSiz
                                     time_t accessTime) {
     mEntries.insert(entryHash);
     mEntryStats[entryHash] = {valueSize, fileSize, accessTime};
+
+    increaseTotalCacheSize(fileSize);
+}
+
+bool MultifileBlobCache::removeEntry(uint32_t entryHash) {
+    auto entryIter = mEntries.find(entryHash);
+    if (entryIter == mEntries.end()) {
+        return false;
+    }
+
+    auto entryStatsIter = mEntryStats.find(entryHash);
+    if (entryStatsIter == mEntryStats.end()) {
+        ALOGE("Failed to remove entryHash (%u) from mEntryStats", entryHash);
+        return false;
+    }
+    decreaseTotalCacheSize(entryStatsIter->second.fileSize);
+
+    mEntryStats.erase(entryStatsIter);
+    mEntries.erase(entryIter);
+
+    return true;
 }
 
 bool MultifileBlobCache::contains(uint32_t hashEntry) const {
@@ -728,12 +752,9 @@ bool MultifileBlobCache::applyLRU(size_t cacheSizeLimit, size_t cacheEntryLimit)
     // Walk through our map of sorted last access times and remove files until under the limit
     for (auto cacheEntryIter = mEntryStats.begin(); cacheEntryIter != mEntryStats.end();) {
         uint32_t entryHash = cacheEntryIter->first;
+        const MultifileEntryStats& entryStats = cacheEntryIter->second;
 
         ALOGV("LRU: Removing entryHash %u", entryHash);
-
-        // Track the overall size
-        MultifileEntryStats entryStats = getEntryStats(entryHash);
-        decreaseTotalCacheSize(entryStats.fileSize);
 
         // Remove it from hot cache if present
         removeFromHotCache(entryHash);
@@ -748,10 +769,9 @@ bool MultifileBlobCache::applyLRU(size_t cacheSizeLimit, size_t cacheEntryLimit)
         // Increment the iterator before clearing the entry
         cacheEntryIter++;
 
-        // Delete the entry from our tracking
-        size_t count = mEntryStats.erase(entryHash);
-        if (count != 1) {
-            ALOGE("LRU: Failed to remove entryHash (%u) from mEntryStats", entryHash);
+        // Delete the entry from our tracking and update the overall cache size
+        if (!removeEntry(entryHash)) {
+            ALOGE("LRU: Failed to remove entryHash %u", entryHash);
             return false;
         }
 

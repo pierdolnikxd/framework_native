@@ -509,4 +509,102 @@ TEST_F(MultifileBlobCacheTest, MismatchedBuildIdClears) {
     ASSERT_EQ(getCacheEntries().size(), 0);
 }
 
+// Ensure cache is correct when a key is reused
+TEST_F(MultifileBlobCacheTest, SameKeyDifferentValues) {
+    if (!flags::multifile_blobcache_advanced_usage()) {
+        GTEST_SKIP() << "Skipping test that requires multifile_blobcache_advanced_usage flag";
+    }
+
+    unsigned char buf[4] = {0xee, 0xee, 0xee, 0xee};
+
+    size_t startingSize = mMBC->getTotalSize();
+
+    // New cache should be empty
+    ASSERT_EQ(startingSize, 0);
+
+    // Set an initial value
+    mMBC->set("ab", 2, "cdef", 4);
+
+    // Grab the new size
+    size_t firstSize = mMBC->getTotalSize();
+
+    // Ensure the size went up
+    // Note: Checking for an exact size is challenging, as the
+    // file size can differ between platforms.
+    ASSERT_GT(firstSize, startingSize);
+
+    // Verify the cache is correct
+    ASSERT_EQ(size_t(4), mMBC->get("ab", 2, buf, 4));
+    ASSERT_EQ('c', buf[0]);
+    ASSERT_EQ('d', buf[1]);
+    ASSERT_EQ('e', buf[2]);
+    ASSERT_EQ('f', buf[3]);
+
+    // Now reuse the key with a smaller value
+    mMBC->set("ab", 2, "gh", 2);
+
+    // Grab the new size
+    size_t secondSize = mMBC->getTotalSize();
+
+    // Ensure it decreased in size
+    ASSERT_LT(secondSize, firstSize);
+
+    // Verify the cache is correct
+    ASSERT_EQ(size_t(2), mMBC->get("ab", 2, buf, 2));
+    ASSERT_EQ('g', buf[0]);
+    ASSERT_EQ('h', buf[1]);
+
+    // Now put back the original value
+    mMBC->set("ab", 2, "cdef", 4);
+
+    // And we should get back a stable size
+    size_t finalSize = mMBC->getTotalSize();
+    ASSERT_EQ(firstSize, finalSize);
+}
+
+// Ensure cache is correct when a key is reused with large value size
+TEST_F(MultifileBlobCacheTest, SameKeyLargeValues) {
+    if (!flags::multifile_blobcache_advanced_usage()) {
+        GTEST_SKIP() << "Skipping test that requires multifile_blobcache_advanced_usage flag";
+    }
+
+    // Create the cache with larger limits to stress test reuse
+    constexpr uint32_t kLocalMaxKeySize = 1 * 1024 * 1024;
+    constexpr uint32_t kLocalMaxValueSize = 4 * 1024 * 1024;
+    constexpr uint32_t kLocalMaxTotalSize = 32 * 1024 * 1024;
+    mMBC.reset(new MultifileBlobCache(kLocalMaxKeySize, kLocalMaxValueSize, kLocalMaxTotalSize,
+                                      kMaxTotalEntries, &mTempFile->path[0]));
+
+    constexpr uint32_t kLargeValueCount = 8;
+    constexpr uint32_t kLargeValueSize = 64 * 1024;
+
+    // Create a several really large values
+    unsigned char largeValue[kLargeValueCount][kLargeValueSize];
+    for (int i = 0; i < kLargeValueCount; i++) {
+        for (int j = 0; j < kLargeValueSize; j++) {
+            // Fill the value with the index for uniqueness
+            largeValue[i][j] = i;
+        }
+    }
+
+    size_t startingSize = mMBC->getTotalSize();
+
+    // New cache should be empty
+    ASSERT_EQ(startingSize, 0);
+
+    // Cycle through the values and set them all in sequence
+    for (int i = 0; i < kLargeValueCount; i++) {
+        mMBC->set("abcd", 4, largeValue[i], kLargeValueSize);
+    }
+
+    // Ensure we get the last one back
+    unsigned char outBuf[kLargeValueSize];
+    mMBC->get("abcd", 4, outBuf, kLargeValueSize);
+
+    for (int i = 0; i < kLargeValueSize; i++) {
+        // Buffer should contain highest index value
+        ASSERT_EQ(kLargeValueCount - 1, outBuf[i]);
+    }
+}
+
 } // namespace android
