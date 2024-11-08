@@ -42,6 +42,7 @@ cc_defaults {
         "libutils",
     ],
     static_libs: [
+        "libguiflags",
         "libmath",
         "librenderengine",
         "libtimestats",

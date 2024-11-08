@@ -25,6 +25,7 @@
 #include <ui/BlurRegion.h>
 #include <ui/FloatRect.h>
 #include <ui/LayerStack.h>
+#include <ui/PictureProfileHandle.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/ShadowSettings.h>
@@ -218,6 +219,14 @@ struct LayerFECompositionState {
 
     float currentHdrSdrRatio = 1.f;
     float desiredHdrSdrRatio = 1.f;
+
+    // A picture profile handle refers to a PictureProfile configured on the display, which is a
+    // set of parameters that configures the picture processing hardware that is used to enhance
+    // the quality of buffer contents.
+    PictureProfileHandle pictureProfileHandle{PictureProfileHandle::NONE};
+
+    // A layer's priority in terms of limited picture processing pipeline utilization.
+    int64_t pictureProfilePriority;
 
     gui::CachingHint cachingHint = gui::CachingHint::Enabled;
 
