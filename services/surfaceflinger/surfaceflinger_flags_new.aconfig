@@ -19,14 +19,6 @@ flag {
 } # adpf_gpu_sf
 
 flag {
-  name: "apply_picture_profiles_sf"
-  namespace: "tv_os_media"
-  description: "SurfaceFlinger applies picture profile requests and sends them to Composer HAL"
-  bug: "337330263"
-  is_fixed_read_only: true
-} # apply_picture_profiles_sf
-
-flag {
   name: "arr_setframerate_api"
   namespace: "core_graphics"
   description: "New SDK Surface#setFrameRate API and Surface.FrameRateParams for Android 16"
@@ -82,6 +74,17 @@ flag {
     purpose: PURPOSE_BUGFIX
   }
 } # correct_dpi_with_display_size
+
+flag {
+  name: "deprecate_frame_tracker"
+  namespace: "core_graphics"
+  description: "Deprecate using FrameTracker to accumulate and provide FrameStats"
+  bug: "241394120"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # deprecate_frame_tracker
 
 flag {
   name: "deprecate_vsync_sf"

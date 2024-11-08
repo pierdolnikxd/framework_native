@@ -55,7 +55,6 @@ public:
 
     /// Trunk stable readonly flags ///
     bool adpf_fmq_sf() const;
-    bool apply_picture_profiles_sf() const;
     bool connected_display() const;
     bool frame_rate_category_mrr() const;
     bool enable_small_area_detection() const;
@@ -97,6 +96,7 @@ public:
     bool true_hdr_screenshots() const;
     bool display_config_error_hal() const;
     bool connected_display_hdr() const;
+    bool deprecate_frame_tracker() const;
 
 protected:
     // overridden for unit tests

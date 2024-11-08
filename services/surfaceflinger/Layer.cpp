@@ -154,7 +154,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
     mDrawingState.metadata = args.metadata;
     mDrawingState.frameTimelineInfo = {};
     mDrawingState.postTime = -1;
-    mFrameTracker.setDisplayRefreshPeriod(
+    mDeprecatedFrameTracker.setDisplayRefreshPeriod(
             args.flinger->mScheduler->getPacesetterVsyncPeriod().ns());
 
     mOwnerUid = args.ownerUid;
@@ -472,6 +472,9 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
                                                                  getSequence(), mName,
                                                                  mTransactionName,
                                                                  /*isBuffer*/ false, gameMode);
+    // Buffer hasn't yet been latched, so use mDrawingState
+    surfaceFrame->setDesiredPresentTime(mDrawingState.desiredPresentTime);
+
     surfaceFrame->setActualStartTime(info.startTimeNanos);
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
@@ -490,6 +493,8 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName, debugName,
                                                                  /*isBuffer*/ true, gameMode);
+    // Buffer hasn't yet been latched, so use mDrawingState
+    surfaceFrame->setDesiredPresentTime(mDrawingState.desiredPresentTime);
     surfaceFrame->setActualStartTime(info.startTimeNanos);
     // For buffers, acquire fence time will set during latch.
     surfaceFrame->setActualQueueTime(queueTime);
@@ -514,6 +519,8 @@ void Layer::setFrameTimelineVsyncForSkippedFrames(const FrameTimelineInfo& info,
                                                                  mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName, debugName,
                                                                  /*isBuffer*/ false, gameMode);
+    // Buffer hasn't yet been latched, so use mDrawingState
+    surfaceFrame->setDesiredPresentTime(mDrawingState.desiredPresentTime);
     surfaceFrame->setActualStartTime(skippedFrameTimelineInfo.skippedFrameStartTimeNanos);
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
@@ -605,15 +612,42 @@ void Layer::miniDump(std::string& result, const frontend::LayerSnapshot& snapsho
 }
 
 void Layer::dumpFrameStats(std::string& result) const {
-    mFrameTracker.dumpStats(result);
+    if (FlagManager::getInstance().deprecate_frame_tracker()) {
+        FrameStats fs = FrameStats();
+        getFrameStats(&fs);
+        for (auto desired = fs.desiredPresentTimesNano.begin(),
+                  actual = fs.actualPresentTimesNano.begin(),
+                  ready = fs.frameReadyTimesNano.begin();
+             desired != fs.desiredPresentTimesNano.end() &&
+             actual != fs.actualPresentTimesNano.end() && ready != fs.frameReadyTimesNano.end();
+             ++desired, ++actual, ++ready) {
+            result.append(std::format("{}\t{}\t{}\n", *desired, *actual, *ready));
+        }
+
+        result.push_back('\n');
+    } else {
+        mDeprecatedFrameTracker.dumpStats(result);
+    }
 }
 
 void Layer::clearFrameStats() {
-    mFrameTracker.clearStats();
+    if (FlagManager::getInstance().deprecate_frame_tracker()) {
+        mFrameStatsHistorySize = 0;
+    } else {
+        mDeprecatedFrameTracker.clearStats();
+    }
 }
 
 void Layer::getFrameStats(FrameStats* outStats) const {
-    mFrameTracker.getStats(outStats);
+    if (FlagManager::getInstance().deprecate_frame_tracker()) {
+        if (auto ftl = getTimeline()) {
+            float fps = ftl->get().computeFps({getSequence()});
+            ftl->get().generateFrameStats(getSequence(), mFrameStatsHistorySize, outStats);
+            outStats->refreshPeriodNano = Fps::fromValue(fps).getPeriodNsecs();
+        }
+    } else {
+        mDeprecatedFrameTracker.getStats(outStats);
+    }
 }
 
 void Layer::onDisconnect() {
@@ -1348,9 +1382,9 @@ void Layer::onCompositionPresented(const DisplayDevice* display,
         handle->compositorTiming = compositorTiming;
     }
 
-    // Update mFrameTracker.
+    // Update mDeprecatedFrameTracker.
     nsecs_t desiredPresentTime = mBufferInfo.mDesiredPresentTime;
-    mFrameTracker.setDesiredPresentTime(desiredPresentTime);
+    mDeprecatedFrameTracker.setDesiredPresentTime(desiredPresentTime);
 
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setDesiredTime(layerId, mCurrentFrameNumber, desiredPresentTime);
@@ -1370,15 +1404,15 @@ void Layer::onCompositionPresented(const DisplayDevice* display,
         }
     }
 
+    // The SurfaceFrame's AcquireFence is the same as this.
     std::shared_ptr<FenceTime> frameReadyFence = mBufferInfo.mFenceTime;
     if (frameReadyFence->isValid()) {
-        mFrameTracker.setFrameReadyFence(std::move(frameReadyFence));
+        mDeprecatedFrameTracker.setFrameReadyFence(std::move(frameReadyFence));
     } else {
         // There was no fence for this frame, so assume that it was ready
         // to be presented at the desired present time.
-        mFrameTracker.setFrameReadyTime(desiredPresentTime);
+        mDeprecatedFrameTracker.setFrameReadyTime(desiredPresentTime);
     }
-
     if (display) {
         const auto activeMode = display->refreshRateSelector().getActiveMode();
         const Fps refreshRate = activeMode.fps;
@@ -1393,7 +1427,7 @@ void Layer::onCompositionPresented(const DisplayDevice* display,
             mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                                presentFence,
                                                FrameTracer::FrameEvent::PRESENT_FENCE);
-            mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
+            mDeprecatedFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
         } else if (const auto displayId = PhysicalDisplayId::tryCast(display->getId());
                    displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
             // The HWC doesn't support present fences, so use the present timestamp instead.
@@ -1414,11 +1448,12 @@ void Layer::onCompositionPresented(const DisplayDevice* display,
             mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(),
                                                    mCurrentFrameNumber, actualPresentTime,
                                                    FrameTracer::FrameEvent::PRESENT_FENCE);
-            mFrameTracker.setActualPresentTime(actualPresentTime);
+            mDeprecatedFrameTracker.setActualPresentTime(actualPresentTime);
         }
     }
 
-    mFrameTracker.advanceFrame();
+    mFrameStatsHistorySize++;
+    mDeprecatedFrameTracker.advanceFrame();
     mBufferInfo.mFrameLatencyNeeded = false;
 }
 

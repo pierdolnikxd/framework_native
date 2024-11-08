@@ -17,7 +17,7 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
+#include <future>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -30,10 +30,8 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #include <aidl/android/hardware/power/IPower.h>
 #include <fmq/AidlMessageQueue.h>
-#include <powermanager/PowerHalController.h>
 #pragma clang diagnostic pop
 
-#include <compositionengine/impl/OutputCompositionState.h>
 #include <scheduler/Time.h>
 #include <ui/DisplayIdentification.h>
 #include "../Scheduler/OneShotTimer.h"
@@ -42,13 +40,16 @@ using namespace std::chrono_literals;
 
 namespace android {
 
-class SurfaceFlinger;
+namespace power {
+class PowerHalController;
+class PowerHintSessionWrapper;
+} // namespace power
 
-namespace Hwc2 {
+namespace adpf {
 
 class PowerAdvisor {
 public:
-    virtual ~PowerAdvisor();
+    virtual ~PowerAdvisor() = default;
 
     // Initializes resources that cannot be initialized on construction
     virtual void init() = 0;
@@ -113,9 +114,9 @@ namespace impl {
 
 // PowerAdvisor is a wrapper around IPower HAL which takes into account the
 // full state of the system when sending out power hints to things like the GPU.
-class PowerAdvisor final : public Hwc2::PowerAdvisor {
+class PowerAdvisor final : public adpf::PowerAdvisor {
 public:
-    PowerAdvisor(SurfaceFlinger& flinger);
+    PowerAdvisor(std::function<void()>&& function, std::chrono::milliseconds timeout);
     ~PowerAdvisor() override;
 
     void init() override;
@@ -159,7 +160,6 @@ private:
     std::unordered_set<DisplayId> mExpensiveDisplays;
     bool mNotifiedExpensiveRendering = false;
 
-    SurfaceFlinger& mFlinger;
     std::atomic_bool mSendUpdateImminent = true;
     std::atomic<nsecs_t> mLastScreenUpdatedTime = 0;
     std::optional<scheduler::OneShotTimer> mScreenUpdateTimer;
@@ -326,5 +326,5 @@ private:
 };
 
 } // namespace impl
-} // namespace Hwc2
+} // namespace adpf
 } // namespace android

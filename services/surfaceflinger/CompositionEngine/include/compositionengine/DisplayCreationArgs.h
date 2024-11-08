@@ -24,7 +24,7 @@
 #include <ui/Size.h>
 #include <ui/StaticDisplayInfo.h>
 
-#include "DisplayHardware/PowerAdvisor.h"
+#include "PowerAdvisor/PowerAdvisor.h"
 
 namespace android::compositionengine {
 
@@ -48,7 +48,7 @@ struct DisplayCreationArgs {
 
     // Optional pointer to the power advisor interface, if one is needed for
     // this display.
-    Hwc2::PowerAdvisor* powerAdvisor = nullptr;
+    adpf::PowerAdvisor* powerAdvisor = nullptr;
 
     // Debugging. Human readable name for the display.
     std::string name;
@@ -82,7 +82,7 @@ public:
         return *this;
     }
 
-    DisplayCreationArgsBuilder& setPowerAdvisor(Hwc2::PowerAdvisor* powerAdvisor) {
+    DisplayCreationArgsBuilder& setPowerAdvisor(adpf::PowerAdvisor* powerAdvisor) {
         mArgs.powerAdvisor = powerAdvisor;
         return *this;
     }
