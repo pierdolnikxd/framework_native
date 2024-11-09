@@ -687,7 +687,8 @@ public:
         // ONLY FOR BLAST ADAPTER
         Transaction& notifyProducerDisconnect(const sp<SurfaceControl>& sc);
 
-        Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const gui::WindowInfo& info);
+        Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc,
+                                        sp<gui::WindowInfoHandle> info);
         Transaction& setFocusedWindow(const gui::FocusRequest& request);
 
         Transaction& addWindowInfosReportedListener(
