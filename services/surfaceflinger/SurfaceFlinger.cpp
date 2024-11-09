@@ -3201,7 +3201,15 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
                                             snapshot.desiredHdrSdrRatio < 1.f
                                             ? std::numeric_limits<float>::infinity()
                                             : snapshot.desiredHdrSdrRatio;
-                                    info.mergeDesiredRatio(desiredHdrSdrRatio);
+
+                                    float desiredRatio = desiredHdrSdrRatio;
+                                    if (FlagManager::getInstance().begone_bright_hlg() &&
+                                        desiredHdrSdrRatio ==
+                                                std::numeric_limits<float>::infinity()) {
+                                        desiredRatio = getIdealizedMaxHeadroom(snapshot.dataspace);
+                                    }
+
+                                    info.mergeDesiredRatio(desiredRatio);
                                     info.numberOfHdrLayers++;
                                     const auto displayFrame = outputLayer->getState().displayFrame;
                                     const int32_t area =

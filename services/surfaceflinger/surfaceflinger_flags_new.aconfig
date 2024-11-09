@@ -35,6 +35,14 @@ flag {
 } # arr_surfacecontrol_setframerate_api
 
 flag {
+  name: "begone_bright_hlg"
+  namespace: "core_graphics"
+  description: "Caps HLG brightness relative to SDR"
+  bug: "362510107"
+  is_fixed_read_only: true
+} # begone_bright_hlg
+
+flag {
   name: "ce_fence_promise"
   namespace: "window_surfaces"
   description: "Moves logic for buffer release fences into LayerFE"
