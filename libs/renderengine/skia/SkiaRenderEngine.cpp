@@ -543,6 +543,10 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
         }
     }
 
+    if (graphicBuffer && parameters.layer.luts) {
+        shader = mLutShader.lutShader(shader, parameters.layer.luts);
+    }
+
     if (parameters.requiresLinearEffect) {
         const auto format = targetBuffer != nullptr
                 ? std::optional<ui::PixelFormat>(
