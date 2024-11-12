@@ -27,6 +27,7 @@
 
 #include "HWComposer.h"
 
+#include <aidl/android/hardware/graphics/composer3/IComposerClient.h>
 #include <android-base/properties.h>
 #include <common/trace.h>
 #include <compositionengine/Output.h>
@@ -733,7 +734,11 @@ status_t HWComposer::setActiveModeWithConstraints(
     auto error = mDisplayData[displayId].hwcDisplay->setActiveConfigWithConstraints(hwcModeId,
                                                                                     constraints,
                                                                                     outTimeline);
-    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
+    if (error == hal::Error::CONFIG_FAILED) {
+        RETURN_IF_HWC_ERROR_FOR("setActiveConfigWithConstraints", error, displayId,
+                                FAILED_TRANSACTION);
+    }
+    RETURN_IF_HWC_ERROR_FOR("setActiveConfigWithConstraints", error, displayId, UNKNOWN_ERROR);
     return NO_ERROR;
 }
 

@@ -1384,7 +1384,7 @@ V2_4::Error AidlComposer::getDisplayVsyncPeriod(Display display, VsyncPeriodNano
     return V2_4::Error::NONE;
 }
 
-V2_4::Error AidlComposer::setActiveConfigWithConstraints(
+Error AidlComposer::setActiveConfigWithConstraints(
         Display display, Config config,
         const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
         VsyncPeriodChangeTimeline* outTimeline) {
@@ -1398,10 +1398,10 @@ V2_4::Error AidlComposer::setActiveConfigWithConstraints(
                                                      &timeline);
     if (!status.isOk()) {
         ALOGE("setActiveConfigWithConstraints failed %s", status.getDescription().c_str());
-        return static_cast<V2_4::Error>(status.getServiceSpecificError());
+        return static_cast<Error>(status.getServiceSpecificError());
     }
     *outTimeline = translate<VsyncPeriodChangeTimeline>(timeline);
-    return V2_4::Error::NONE;
+    return Error::NONE;
 }
 
 V2_4::Error AidlComposer::setAutoLowLatencyMode(Display display, bool on) {
