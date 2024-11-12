@@ -20,8 +20,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <com_android_graphics_libgui_flags.h>
-
 #include <android/gui/BnWindowInfosReportedListener.h>
 #include <android/gui/DisplayState.h>
 #include <android/gui/EdgeExtensionParameters.h>
@@ -29,6 +27,7 @@
 #include <android/gui/IWindowInfosListener.h>
 #include <android/gui/TrustedPresentationThresholds.h>
 #include <android/os/IInputConstants.h>
+#include <com_android_graphics_libgui_flags.h>
 #include <gui/DisplayLuts.h>
 #include <gui/FrameRateUtils.h>
 #include <gui/TraceUtils.h>
@@ -1971,9 +1970,13 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLuts(
         return *this;
     }
 
-    s->luts = std::make_shared<gui::DisplayLuts>(base::unique_fd(dup(lutFd.get())), offsets,
-                                                 dimensions, sizes, samplingKeys);
     s->what |= layer_state_t::eLutsChanged;
+    if (lutFd.ok()) {
+        s->luts = std::make_shared<gui::DisplayLuts>(base::unique_fd(dup(lutFd.get())), offsets,
+                                                     dimensions, sizes, samplingKeys);
+    } else {
+        s->luts = nullptr;
+    }
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -2444,6 +2447,40 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     s->bufferReleaseChannel = channel;
 
     registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setPictureProfileHandle(
+        const sp<SurfaceControl>& sc, const PictureProfileHandle& pictureProfileHandle) {
+    if (com_android_graphics_libgui_flags_apply_picture_profiles()) {
+        layer_state_t* s = getLayerState(sc);
+        if (!s) {
+            mStatus = BAD_INDEX;
+            return *this;
+        }
+
+        s->what |= layer_state_t::ePictureProfileHandleChanged;
+        s->pictureProfileHandle = pictureProfileHandle;
+
+        registerSurfaceControlForCallback(sc);
+    }
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setContentPriority(
+        const sp<SurfaceControl>& sc, int32_t priority) {
+    if (com_android_graphics_libgui_flags_apply_picture_profiles()) {
+        layer_state_t* s = getLayerState(sc);
+        if (!s) {
+            mStatus = BAD_INDEX;
+            return *this;
+        }
+
+        s->what |= layer_state_t::eAppContentPriorityChanged;
+        s->appContentPriority = priority;
+
+        registerSurfaceControlForCallback(sc);
+    }
     return *this;
 }
 

@@ -3558,7 +3558,9 @@ std::optional<DisplayModeId> SurfaceFlinger::processHotplugConnect(PhysicalDispl
     }
     state.isProtected = true;
     state.displayName = std::move(info.name);
-
+    state.maxLayerPictureProfiles = getHwComposer().getMaxLayerPictureProfiles(displayId);
+    state.hasPictureProcessing =
+            getHwComposer().hasDisplayCapability(displayId, DisplayCapability::PICTURE_PROCESSING);
     mCurrentState.displays.add(token, state);
     ALOGI("Connecting %s", displayString);
     return activeModeId;
@@ -3719,6 +3721,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     builder.setPixels(resolution);
     builder.setIsSecure(state.isSecure);
     builder.setIsProtected(state.isProtected);
+    builder.setHasPictureProcessing(state.hasPictureProcessing);
+    builder.setMaxLayerPictureProfiles(state.maxLayerPictureProfiles);
     builder.setPowerAdvisor(mPowerAdvisor.get());
     builder.setName(state.displayName);
     auto compositionDisplay = getCompositionEngine().createDisplay(builder.build());
