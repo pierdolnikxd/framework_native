@@ -345,6 +345,15 @@ public:
 
     static bool flagEdgeExtensionEffectUseShader();
 
+    /**
+     * Returns how many picture profiles are supported by the display.
+     *
+     * displayToken
+     *      The token of the display.
+     */
+    static status_t getMaxLayerPictureProfiles(const sp<IBinder>& displayToken,
+                                               int32_t* outMaxProfiles);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 

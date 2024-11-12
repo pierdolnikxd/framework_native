@@ -1840,6 +1840,24 @@ void SurfaceFlinger::setGameContentType(const sp<IBinder>& displayToken, bool on
     }));
 }
 
+status_t SurfaceFlinger::getMaxLayerPictureProfiles(const sp<IBinder>& displayToken,
+                                                    int32_t* outMaxProfiles) {
+    const char* const whence = __func__;
+    auto future = mScheduler->schedule([=, this]() FTL_FAKE_GUARD(mStateLock) {
+        const ssize_t index = mCurrentState.displays.indexOfKey(displayToken);
+        if (index < 0) {
+            ALOGE("%s: Invalid display token %p", whence, displayToken.get());
+            return 0;
+        }
+        const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
+        return state.maxLayerPictureProfiles > 0 ? state.maxLayerPictureProfiles
+                : state.hasPictureProcessing     ? 1
+                                                 : 0;
+    });
+    *outMaxProfiles = future.get();
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::overrideHdrTypes(const sp<IBinder>& displayToken,
                                           const std::vector<ui::Hdr>& hdrTypes) {
     Mutex::Autolock lock(mStateLock);
@@ -8756,6 +8774,16 @@ binder::Status SurfaceComposerAIDL::setGameContentType(const sp<IBinder>& displa
         return binderStatusFromStatusT(status);
     }
     mFlinger->setGameContentType(display, on);
+    return binder::Status::ok();
+}
+
+binder::Status SurfaceComposerAIDL::getMaxLayerPictureProfiles(const sp<IBinder>& display,
+                                                               int32_t* outMaxProfiles) {
+    status_t status = checkAccessPermission();
+    if (status != OK) {
+        return binderStatusFromStatusT(status);
+    }
+    mFlinger->getMaxLayerPictureProfiles(display, outMaxProfiles);
     return binder::Status::ok();
 }
 

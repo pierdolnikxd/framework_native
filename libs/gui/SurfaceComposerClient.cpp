@@ -3056,6 +3056,14 @@ void SurfaceComposerClient::setDisplayPowerMode(const sp<IBinder>& token,
     ComposerServiceAIDL::getComposerService()->setPowerMode(token, mode);
 }
 
+status_t SurfaceComposerClient::getMaxLayerPictureProfiles(const sp<IBinder>& token,
+                                                           int32_t* outMaxProfiles) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->getMaxLayerPictureProfiles(token,
+                                                                                  outMaxProfiles);
+    return statusTFromBinderStatus(status);
+}
+
 status_t SurfaceComposerClient::getCompositionPreference(
         ui::Dataspace* defaultDataspace, ui::PixelFormat* defaultPixelFormat,
         ui::Dataspace* wideColorGamutDataspace, ui::PixelFormat* wideColorGamutPixelFormat) {

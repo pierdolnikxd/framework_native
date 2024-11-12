@@ -1020,6 +1020,11 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status getMaxLayerPictureProfiles(const sp<IBinder>& /*display*/,
+                                              int32_t* /*outMaxProfiles*/) {
+        return binder::Status::ok();
+    }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 

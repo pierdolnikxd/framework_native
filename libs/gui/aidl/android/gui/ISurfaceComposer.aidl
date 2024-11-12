@@ -229,6 +229,11 @@ interface ISurfaceComposer {
     void setGameContentType(IBinder display, boolean on);
 
     /**
+     * Gets the maximum number of picture profiles supported by the display.
+     */
+    int getMaxLayerPictureProfiles(IBinder display);
+
+    /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
      * permission.  This function will fail if there is a secure window on
      * screen and DisplayCaptureArgs.captureSecureLayers is false.
