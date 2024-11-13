@@ -169,7 +169,8 @@ sk_sp<SkShader> LutShader::generateLutShader(sk_sp<SkShader> input,
 }
 
 sk_sp<SkShader> LutShader::lutShader(sk_sp<SkShader>& input,
-                                     std::shared_ptr<gui::DisplayLuts> displayLuts) {
+                                     std::shared_ptr<gui::DisplayLuts> displayLuts,
+                                     sk_sp<SkColorSpace> outColorSpace) {
     if (mBuilder == nullptr) {
         const static SkRuntimeEffect::Result instance = SkRuntimeEffect::MakeForShader(kShader);
         mBuilder = std::make_unique<SkRuntimeShaderBuilder>(instance.effect);
@@ -179,14 +180,11 @@ sk_sp<SkShader> LutShader::lutShader(sk_sp<SkShader>& input,
     if (fd.ok()) {
         // de-gamma the image without changing the primaries
         SkImage* baseImage = input->isAImage((SkMatrix*)nullptr, (SkTileMode*)nullptr);
-        if (baseImage) {
-            sk_sp<SkColorSpace> baseColorSpace =
-                    baseImage->colorSpace() ? baseImage->refColorSpace() : SkColorSpace::MakeSRGB();
-            sk_sp<SkColorSpace> gainmapMathColorSpace = baseColorSpace->makeLinearGamma();
-            auto colorXformSdrToGainmap =
-                    SkColorFilterPriv::MakeColorSpaceXform(baseColorSpace, gainmapMathColorSpace);
-            input = input->makeWithColorFilter(colorXformSdrToGainmap);
-        }
+        sk_sp<SkColorSpace> baseColorSpace = baseImage && baseImage->colorSpace()
+                ? baseImage->refColorSpace()
+                : SkColorSpace::MakeSRGB();
+        sk_sp<SkColorSpace> lutMathColorSpace = baseColorSpace->makeLinearGamma();
+        input = input->makeWithWorkingColorSpace(lutMathColorSpace);
 
         auto& offsets = displayLuts->offsets;
         auto& lutProperties = displayLuts->lutProperties;
@@ -223,16 +221,9 @@ sk_sp<SkShader> LutShader::lutShader(sk_sp<SkShader>& input,
                                       lutProperties[i].samplingKey);
         }
 
-        // re-gamma
-        baseImage = input->isAImage((SkMatrix*)nullptr, (SkTileMode*)nullptr);
-        if (baseImage) {
-            sk_sp<SkColorSpace> baseColorSpace =
-                    baseImage->colorSpace() ? baseImage->refColorSpace() : SkColorSpace::MakeSRGB();
-            sk_sp<SkColorSpace> gainmapMathColorSpace = baseColorSpace->makeLinearGamma();
-            auto colorXformGainmapToDst =
-                    SkColorFilterPriv::MakeColorSpaceXform(gainmapMathColorSpace, baseColorSpace);
-            input = input->makeWithColorFilter(colorXformGainmapToDst);
-        }
+        auto colorXformLutToDst =
+                SkColorFilterPriv::MakeColorSpaceXform(lutMathColorSpace, outColorSpace);
+        input = input->makeWithColorFilter(colorXformLutToDst);
     }
     return input;
 }
