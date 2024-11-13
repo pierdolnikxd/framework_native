@@ -212,6 +212,15 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
     ALOGW_IF(manufactureOrModelYear <= 0xf,
              "Invalid EDID: model year or manufacture year cannot be in the range [0x0, 0xf].");
 
+    constexpr size_t kMaxHorizontalPhysicalSizeOffset = 21;
+    constexpr size_t kMaxVerticalPhysicalSizeOffset = 22;
+    if (edid.size() < kMaxVerticalPhysicalSizeOffset + sizeof(uint8_t)) {
+        ALOGE("Invalid EDID: display's physical size is truncated.");
+        return {};
+    }
+    ui::Size maxPhysicalSizeInCm(edid[kMaxHorizontalPhysicalSizeOffset],
+                                 edid[kMaxVerticalPhysicalSizeOffset]);
+
     constexpr size_t kDescriptorOffset = 54;
     if (edid.size() < kDescriptorOffset) {
         ALOGE("Invalid EDID: descriptors are missing.");
@@ -346,6 +355,7 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
             .displayName = displayName,
             .manufactureOrModelYear = manufactureOrModelYear,
             .manufactureWeek = manufactureWeek,
+            .physicalSizeInCm = maxPhysicalSizeInCm,
             .cea861Block = cea861Block,
             .preferredDetailedTimingDescriptor = preferredDetailedTimingDescriptor,
     };

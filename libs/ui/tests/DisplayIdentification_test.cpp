@@ -193,6 +193,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(12610, edid->productId);
     EXPECT_EQ(21, edid->manufactureOrModelYear);
     EXPECT_EQ(0, edid->manufactureWeek);
+    EXPECT_EQ(26, edid->physicalSizeInCm.width);
+    EXPECT_EQ(16, edid->physicalSizeInCm.height);
     EXPECT_FALSE(edid->cea861Block);
     EXPECT_EQ(1280, edid->preferredDetailedTimingDescriptor->pixelSizeCount.width);
     EXPECT_EQ(800, edid->preferredDetailedTimingDescriptor->pixelSizeCount.height);
@@ -209,6 +211,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(10348, edid->productId);
     EXPECT_EQ(22, edid->manufactureOrModelYear);
     EXPECT_EQ(2, edid->manufactureWeek);
+    EXPECT_EQ(64, edid->physicalSizeInCm.width);
+    EXPECT_EQ(40, edid->physicalSizeInCm.height);
     EXPECT_FALSE(edid->cea861Block);
     EXPECT_EQ(1280, edid->preferredDetailedTimingDescriptor->pixelSizeCount.width);
     EXPECT_EQ(800, edid->preferredDetailedTimingDescriptor->pixelSizeCount.height);
@@ -225,6 +229,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(2302, edid->productId);
     EXPECT_EQ(21, edid->manufactureOrModelYear);
     EXPECT_EQ(41, edid->manufactureWeek);
+    EXPECT_EQ(16, edid->physicalSizeInCm.width);
+    EXPECT_EQ(9, edid->physicalSizeInCm.height);
     ASSERT_TRUE(edid->cea861Block);
     ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock);
     auto physicalAddress = edid->cea861Block->hdmiVendorDataBlock->physicalAddress;
@@ -247,6 +253,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(41622, edid->productId);
     EXPECT_EQ(29, edid->manufactureOrModelYear);
     EXPECT_EQ(0, edid->manufactureWeek);
+    EXPECT_EQ(128, edid->physicalSizeInCm.width);
+    EXPECT_EQ(72, edid->physicalSizeInCm.height);
     ASSERT_TRUE(edid->cea861Block);
     ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock);
     physicalAddress = edid->cea861Block->hdmiVendorDataBlock->physicalAddress;
@@ -269,6 +277,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(0, edid->productId);
     EXPECT_EQ(29, edid->manufactureOrModelYear);
     EXPECT_EQ(18, edid->manufactureWeek);
+    EXPECT_EQ(0, edid->physicalSizeInCm.width);
+    EXPECT_EQ(0, edid->physicalSizeInCm.height);
     ASSERT_TRUE(edid->cea861Block);
     ASSERT_TRUE(edid->cea861Block->hdmiVendorDataBlock);
     physicalAddress = edid->cea861Block->hdmiVendorDataBlock->physicalAddress;
@@ -291,6 +301,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(9373, edid->productId);
     EXPECT_EQ(23, edid->manufactureOrModelYear);
     EXPECT_EQ(0xff, edid->manufactureWeek);
+    EXPECT_EQ(52, edid->physicalSizeInCm.width);
+    EXPECT_EQ(29, edid->physicalSizeInCm.height);
     ASSERT_TRUE(edid->cea861Block);
     EXPECT_FALSE(edid->cea861Block->hdmiVendorDataBlock);
     EXPECT_EQ(1360, edid->preferredDetailedTimingDescriptor->pixelSizeCount.width);
