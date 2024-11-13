@@ -19,9 +19,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <numeric>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 
 #include <ftl/hash.h>
 #include <log/log.h>
@@ -194,6 +197,21 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
     const uint16_t productId =
             static_cast<uint16_t>(edid[kProductIdOffset] | (edid[kProductIdOffset + 1] << 8));
 
+    //   Bytes 12-15: display serial number, in little-endian (LSB). This field is
+    //   optional and its absence is marked by having all bytes set to 0x00.
+    //   Values do not represent ASCII characters.
+    constexpr size_t kSerialNumberOffset = 12;
+    if (edid.size() < kSerialNumberOffset + sizeof(uint32_t)) {
+        ALOGE("Invalid EDID: block zero S/N is truncated.");
+        return {};
+    }
+    const uint32_t blockZeroSerialNumber = edid[kSerialNumberOffset] +
+            (edid[kSerialNumberOffset + 1] << 8) + (edid[kSerialNumberOffset + 2] << 16) +
+            (edid[kSerialNumberOffset + 3] << 24);
+    const auto hashedBlockZeroSNOpt = blockZeroSerialNumber == 0
+            ? std::nullopt
+            : ftl::stable_hash(std::string_view(std::to_string(blockZeroSerialNumber)));
+
     constexpr size_t kManufactureWeekOffset = 16;
     if (edid.size() < kManufactureWeekOffset + sizeof(uint8_t)) {
         ALOGE("Invalid EDID: manufacture week is truncated.");
@@ -350,6 +368,7 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
     return Edid{
             .manufacturerId = manufacturerId,
             .productId = productId,
+            .hashedBlockZeroSerialNumberOpt = hashedBlockZeroSNOpt,
             .pnpId = *pnpId,
             .modelHash = modelHash,
             .displayName = displayName,
