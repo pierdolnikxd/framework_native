@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <variant>
@@ -44,7 +43,6 @@
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "RenderArea.h"
-#include "Scheduler/MessageQueue.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "SurfaceFlinger.h"
 #include "TestableScheduler.h"
@@ -60,7 +58,6 @@
 
 #include "Scheduler/VSyncTracker.h"
 #include "Scheduler/VsyncController.h"
-#include "mock/MockVSyncDispatch.h"
 #include "mock/MockVSyncTracker.h"
 #include "mock/MockVsyncController.h"
 
@@ -88,9 +85,7 @@ class Factory final : public surfaceflinger::Factory {
 public:
     ~Factory() = default;
 
-    std::unique_ptr<HWComposer> createHWComposer(const std::string&) override {
-        return nullptr;
-    }
+    std::unique_ptr<HWComposer> createHWComposer(const std::string&) override { return nullptr; }
 
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps /*currentRefreshRate*/) override {
@@ -276,17 +271,6 @@ public:
 
         auto eventThread = makeMock<mock::EventThread>(options.useNiceMock);
         auto sfEventThread = makeMock<mock::EventThread>(options.useNiceMock);
-
-        EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                                 mock::EventThread::kCallingUid)));
-
-        EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                                 mock::EventThread::kCallingUid)));
-
         auto vsyncController = makeMock<mock::VsyncController>(options.useNiceMock);
         auto vsyncTracker = makeSharedMock<mock::VSyncTracker>(options.useNiceMock);
 
@@ -326,33 +310,23 @@ public:
 
     auto& mutableStateLock() { return mFlinger->mStateLock; }
 
-    static auto findOutputLayerForDisplay(const sp<Layer>& layer,
-                                          const sp<const DisplayDevice>& display) {
-        return layer->findOutputLayerForDisplay(display.get());
-    }
-
-    static void setLayerSidebandStream(const sp<Layer>& layer,
-                                       const sp<NativeHandle>& sidebandStream) {
-        layer->mDrawingState.sidebandStream = sidebandStream;
-        layer->mSidebandStream = sidebandStream;
-        layer->editLayerSnapshot()->sidebandStream = sidebandStream;
+    compositionengine::OutputLayer* findOutputLayerForDisplay(
+            uint32_t layerId, const sp<const DisplayDevice>& display) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        if (mFlinger->mLegacyLayers.find(layerId) == mFlinger->mLegacyLayers.end()) {
+            return nullptr;
+        }
+        return mFlinger->mLegacyLayers[layerId]->findOutputLayerForDisplay(display.get());
     }
 
     void setLayerCompositionType(const sp<Layer>& layer,
                                  aidl::android::hardware::graphics::composer3::Composition type) {
-        auto outputLayer = findOutputLayerForDisplay(layer, mFlinger->getDefaultDisplayDevice());
+        auto outputLayer = findOutputLayerForDisplay(static_cast<uint32_t>(layer->sequence),
+                                                     mFlinger->getDefaultDisplayDevice());
         LOG_ALWAYS_FATAL_IF(!outputLayer);
         auto& state = outputLayer->editState();
         LOG_ALWAYS_FATAL_IF(!outputLayer->getState().hwc);
         (*state.hwc).hwcCompositionType = type;
-    }
-
-    static void setLayerPotentialCursor(const sp<Layer>& layer, bool potentialCursor) {
-        layer->mPotentialCursor = potentialCursor;
-    }
-
-    static void setLayerDrawingParent(const sp<Layer>& layer, const sp<Layer>& drawingParent) {
-        layer->mDrawingParent = drawingParent;
     }
 
     /* ------------------------------------------------------------------------
@@ -395,7 +369,7 @@ public:
             targets.try_emplace(id, &frameTargeter.target());
             targeters.try_emplace(id, &frameTargeter);
         }
-
+        mFlinger->setTransactionFlags(eTransactionFlushNeeded);
         mFlinger->commit(displayId, targets);
 
         if (composite) {
@@ -500,19 +474,19 @@ public:
         auto layers = getLayerSnapshotsFn();
         auto layerFEs = mFlinger->extractLayerFEs(layers);
 
-        return mFlinger->renderScreenImpl(std::move(renderArea), buffer, regionSampling,
+        return mFlinger->renderScreenImpl(renderArea.get(), buffer, regionSampling,
                                           false /* grayscale */, false /* isProtected */,
-                                          captureResults, displayState, layers, layerFEs);
+                                          false /* attachGainmap */, captureResults, displayState,
+                                          layers, layerFEs);
     }
 
-    auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
-                                    std::unordered_set<uint32_t> excludeLayerIds,
-                                    const LayerVector::Visitor& visitor) {
-        return mFlinger->traverseLayersInLayerStack(layerStack, uid, excludeLayerIds, visitor);
+    auto getLayerSnapshotsForScreenshotsFn(ui::LayerStack layerStack, uint32_t uid) {
+        return mFlinger->getLayerSnapshotsForScreenshots(layerStack, uid,
+                                                         std::unordered_set<uint32_t>{});
     }
 
     auto getDisplayNativePrimaries(const sp<IBinder>& displayToken,
-                                   ui::DisplayPrimaries &primaries) {
+                                   ui::DisplayPrimaries& primaries) {
         return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
     }
 
@@ -530,7 +504,7 @@ public:
 
     auto setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, Vector<ComposerState>& states,
-            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
+            Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
             const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
             bool isAutoTimestamp, const std::vector<client_cache_t>& uncacheBuffers,
             bool hasListenerCallbacks, std::vector<ListenerCallbacks>& listenerCallbacks,
@@ -586,8 +560,6 @@ public:
         return mFlinger->mirrorLayer(args, mirrorFromHandle, outResult);
     }
 
-    void updateLayerMetadataSnapshot() { mFlinger->updateLayerMetadataSnapshot(); }
-
     void getDynamicDisplayInfoFromToken(const sp<IBinder>& displayToken,
                                         ui::DynamicDisplayInfo* dynamicDisplayInfo) {
         mFlinger->getDynamicDisplayInfoFromToken(displayToken, dynamicDisplayInfo);
@@ -622,6 +594,18 @@ public:
         mFlinger->mNewLayers.emplace_back(std::move(layer));
     }
 
+    // Used to add a layer before updateLayerSnapshots is called.
+    // Must have transactionsFlushed enabled for the new layer to be updated.
+    void addLayer(uint32_t layerId) {
+        std::scoped_lock<std::mutex> lock(mFlinger->mCreatedLayersLock);
+        LayerCreationArgs args(std::make_optional(layerId));
+        args.flinger = this->mFlinger.get();
+        auto layer = std::make_unique<frontend::RequestedLayerState>(args);
+        auto legacyLayer = sp<Layer>::make(args);
+        injectLegacyLayer(legacyLayer);
+        mFlinger->mNewLayers.emplace_back(std::move(layer));
+    }
+
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
      */
@@ -639,11 +623,23 @@ public:
     void injectLegacyLayer(sp<Layer> layer) {
         FTL_FAKE_GUARD(kMainThreadContext,
                        mFlinger->mLegacyLayers[static_cast<uint32_t>(layer->sequence)] = layer);
-    };
+    }
 
     void releaseLegacyLayer(uint32_t sequence) {
         FTL_FAKE_GUARD(kMainThreadContext, mFlinger->mLegacyLayers.erase(sequence));
+    }
+
+    auto getLegacyLayer(uint32_t layerId) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return mFlinger->mLegacyLayers[layerId];
     };
+
+    void destroyAllLayerHandles() {
+        ftl::FakeGuard guard(kMainThreadContext);
+        for (auto [layerId, legacyLayer] : mFlinger->mLegacyLayers) {
+            mFlinger->onHandleDestroyed(nullptr, legacyLayer, layerId);
+        }
+    }
 
     auto setLayerHistoryDisplayArea(uint32_t displayArea) {
         return mFlinger->mScheduler->onActiveDisplayAreaChanged(displayArea);
@@ -707,7 +703,6 @@ public:
     }
 
     auto& mutableMinAcquiredBuffers() { return SurfaceFlinger::minAcquiredBuffers; }
-    auto& mutableLayersPendingRemoval() { return mFlinger->mLayersPendingRemoval; }
     auto& mutableLayerSnapshotBuilder() NO_THREAD_SAFETY_ANALYSIS {
         return mFlinger->mLayerSnapshotBuilder;
     }
@@ -718,10 +713,6 @@ public:
         mFlinger->mTransactionTracing.emplace();
         return mFlinger->initTransactionTraceWriter();
     }
-
-    // Needed since mLayerLifecycleManagerEnabled is false by default and must
-    // be enabled for tests to go through the new front end path.
-    void enableLayerLifecycleManager() { mFlinger->mLayerLifecycleManagerEnabled = true; }
 
     void notifyExpectedPresentIfRequired(PhysicalDisplayId displayId, Period vsyncPeriod,
                                          TimePoint expectedPresentTime, Fps frameInterval,
@@ -781,7 +772,6 @@ public:
         mutableDisplays().clear();
         mutableCurrentState().displays.clear();
         mutableDrawingState().displays.clear();
-        mFlinger->mLayersPendingRemoval.clear();
         mFlinger->mScheduler.reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mRenderEngine = std::unique_ptr<renderengine::RenderEngine>();

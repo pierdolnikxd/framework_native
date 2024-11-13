@@ -99,11 +99,8 @@ protected:
         setupAxis(ABS_MT_TOOL_TYPE, /*valid=*/false, /*min=*/0, /*max=*/0, /*resolution=*/0);
 
         // reset current slot at the beginning
-        EXPECT_CALL(mMockEventHub, getAbsoluteAxisValue(EVENTHUB_ID, ABS_MT_SLOT, _))
-                .WillRepeatedly([](int32_t, int32_t, int32_t* outValue) {
-                    *outValue = 0;
-                    return OK;
-                });
+        EXPECT_CALL(mMockEventHub, getAbsoluteAxisValue(EVENTHUB_ID, ABS_MT_SLOT))
+                .WillRepeatedly(Return(0));
 
         // mark all slots not in use
         mockSlotValues({});
@@ -210,11 +207,8 @@ TEST_F(MultiTouchInputMapperUnitTest, MultiFingerGestureWithUnexpectedReset) {
     const auto pointerCoordsBeforeReset = std::get<NotifyMotionArgs>(args.back()).pointerCoords;
 
     // On buffer overflow mapper will be reset and MT slots data will be repopulated
-    EXPECT_CALL(mMockEventHub, getAbsoluteAxisValue(EVENTHUB_ID, ABS_MT_SLOT, _))
-            .WillRepeatedly([=](int32_t, int32_t, int32_t* outValue) {
-                *outValue = 1;
-                return OK;
-            });
+    EXPECT_CALL(mMockEventHub, getAbsoluteAxisValue(EVENTHUB_ID, ABS_MT_SLOT))
+            .WillRepeatedly(Return(1));
 
     mockSlotValues(
             {{1, {Point{x1, y1}, FIRST_TRACKING_ID}}, {2, {Point{x2, y2}, SECOND_TRACKING_ID}}});

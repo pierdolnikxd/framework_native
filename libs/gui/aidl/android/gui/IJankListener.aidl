@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef TRACE_RESULT_H
-#define TRACE_RESULT_H
+package android.gui;
 
-namespace tracing_perfetto {
+import android.gui.JankData;
 
-enum class Result {
-  SUCCESS,
-  NOT_SUPPORTED,
-  INVALID_INPUT,
-};
+/** @hide */
+interface IJankListener {
 
+  /**
+   * Callback reporting jank data of the most recent frames.
+   * @See {@link ISurfaceComposer#addJankListener(IBinder, IJankListener)}
+   */
+  void onJankData(in JankData[] data);
 }
-
-#endif  // TRACE_RESULT_H

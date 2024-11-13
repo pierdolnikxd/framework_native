@@ -1566,7 +1566,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60
             // When frame rates get an equal score, the lower is chosen, unless there are Max votes.
             {0_Hz, FrameRateCategory::High, 90_Hz},
             {0_Hz, FrameRateCategory::Normal, 60_Hz},
-            {0_Hz, FrameRateCategory::Low, 30_Hz},
+            {0_Hz, FrameRateCategory::Low, 60_Hz},
             {0_Hz, FrameRateCategory::NoPreference, 60_Hz},
 
             // Cases that have both desired frame rate and frame rate category requirements.
@@ -1607,6 +1607,77 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60
 
         EXPECT_EQ(testCase.expectedFrameRate,
                   selector.getBestFrameRateMode(layers).modePtr->getPeakFps())
+                << "Did not get expected frame rate for frameRate="
+                << to_string(testCase.desiredFrameRate)
+                << " category=" << ftl::enum_string(testCase.frameRateCategory);
+    }
+}
+
+TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_120_vrr) {
+    if (GetParam() != Config::FrameRateOverride::Enabled) {
+        return;
+    }
+
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+    // Device with VRR config mode
+    auto selector = createSelector(kVrrMode_120, kModeId120);
+
+    struct Case {
+        // Params
+        Fps desiredFrameRate = 0_Hz;
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+
+        // Expected result
+        Fps expectedFrameRate = 0_Hz;
+    };
+
+    // Prepare a table with the vote and the expected refresh rate
+    const std::initializer_list<Case> testCases = {
+            // Cases that only have frame rate category requirements, but no desired frame rate.
+            // When frame rates get an equal score, the lower is chosen, unless there are Max votes.
+            {0_Hz, FrameRateCategory::High, 120_Hz},
+            {0_Hz, FrameRateCategory::Normal, 60_Hz},
+            {0_Hz, FrameRateCategory::Low, 48_Hz},
+            {0_Hz, FrameRateCategory::NoPreference, 120_Hz},
+
+            // Cases that have both desired frame rate and frame rate category requirements.
+            {24_Hz, FrameRateCategory::High, 120_Hz},
+            {30_Hz, FrameRateCategory::High, 120_Hz},
+            {12_Hz, FrameRateCategory::Normal, 60_Hz},
+            {24_Hz, FrameRateCategory::Low, 48_Hz},
+            {30_Hz, FrameRateCategory::NoPreference, 30_Hz},
+
+            // Cases that only have desired frame rate.
+            {30_Hz, FrameRateCategory::Default, 30_Hz},
+    };
+
+    for (auto testCase : testCases) {
+        std::vector<LayerRequirement> layers;
+        ALOGI("**** %s: Testing desiredFrameRate=%s, frameRateCategory=%s", __func__,
+              to_string(testCase.desiredFrameRate).c_str(),
+              ftl::enum_string(testCase.frameRateCategory).c_str());
+
+        if (testCase.desiredFrameRate.isValid()) {
+            std::stringstream ss;
+            ss << to_string(testCase.desiredFrameRate) << "ExplicitDefault";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitDefault,
+                                      .desiredRefreshRate = testCase.desiredFrameRate,
+                                      .weight = 1.f};
+            layers.push_back(layer);
+        }
+
+        if (testCase.frameRateCategory != FrameRateCategory::Default) {
+            std::stringstream ss;
+            ss << "ExplicitCategory (" << ftl::enum_string(testCase.frameRateCategory) << ")";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitCategory,
+                                      .frameRateCategory = testCase.frameRateCategory,
+                                      .weight = 1.f};
+            layers.push_back(layer);
+        }
+
+        EXPECT_EQ(testCase.expectedFrameRate, selector.getBestFrameRateMode(layers).fps)
                 << "Did not get expected frame rate for frameRate="
                 << to_string(testCase.desiredFrameRate)
                 << " category=" << ftl::enum_string(testCase.frameRateCategory);
@@ -2181,14 +2252,14 @@ TEST_P(RefreshRateSelectorTest,
             // These layers may switch modes because smoothSwitchOnly=false.
             {FrameRateCategory::Default, false, 120_Hz, kModeId120},
             {FrameRateCategory::NoPreference, false, 120_Hz, kModeId120},
-            {FrameRateCategory::Low, false, 30_Hz, kModeId60},
+            {FrameRateCategory::Low, false, 60_Hz, kModeId60},
             {FrameRateCategory::Normal, false, 60_Hz, kModeId60},
             {FrameRateCategory::High, false, 120_Hz, kModeId120},
 
             // These layers cannot change mode due to smoothSwitchOnly, and will definitely use
             // active mode (120Hz).
             {FrameRateCategory::NoPreference, true, 120_Hz, kModeId120},
-            {FrameRateCategory::Low, true, 40_Hz, kModeId120},
+            {FrameRateCategory::Low, true, 120_Hz, kModeId120},
             {FrameRateCategory::Normal, true, 120_Hz, kModeId120},
             {FrameRateCategory::High, true, 120_Hz, kModeId120},
     };
@@ -2248,13 +2319,13 @@ TEST_P(RefreshRateSelectorTest,
             {FrameRateCategory::Default, false, 120_Hz},
             // TODO(b/266481656): Once this bug is fixed, NoPreference should be a lower frame rate.
             {FrameRateCategory::NoPreference, false, 120_Hz},
-            {FrameRateCategory::Low, false, 30_Hz},
+            {FrameRateCategory::Low, false, 48_Hz},
             {FrameRateCategory::Normal, false, 60_Hz},
             {FrameRateCategory::High, false, 120_Hz},
             {FrameRateCategory::Default, true, 120_Hz},
             // TODO(b/266481656): Once this bug is fixed, NoPreference should be a lower frame rate.
             {FrameRateCategory::NoPreference, true, 120_Hz},
-            {FrameRateCategory::Low, true, 30_Hz},
+            {FrameRateCategory::Low, true, 48_Hz},
             {FrameRateCategory::Normal, true, 60_Hz},
             {FrameRateCategory::High, true, 120_Hz},
     };

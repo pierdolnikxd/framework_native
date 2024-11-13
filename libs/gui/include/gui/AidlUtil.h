@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <android/gui/ARect.h>
 #include <binder/Status.h>
+#include <ui/Rect.h>
 
-// Extracted from frameworks/av/media/libaudioclient/include/media/AidlConversionUtil.h
+// Originally extracted from frameworks/av/media/libaudioclient/include/media/AidlConversionUtil.h
 namespace android::gui::aidl_utils {
 
 /**
@@ -68,7 +70,7 @@ static inline status_t statusTFromExceptionCode(int32_t exceptionCode) {
  *
  * return_type method(type0 param0, ...)
  */
-static inline status_t statusTFromBinderStatus(const ::android::binder::Status &status) {
+static inline status_t statusTFromBinderStatus(const ::android::binder::Status& status) {
     return status.isOk() ? OK // check OK,
         : status.serviceSpecificErrorCode() // service-side error, not standard Java exception
                                             // (fromServiceSpecificError)
@@ -84,8 +86,8 @@ static inline status_t statusTFromBinderStatus(const ::android::binder::Status &
  * where Java callers expect an exception, not an integer return value.
  */
 static inline ::android::binder::Status binderStatusFromStatusT(
-        status_t status, const char *optionalMessage = nullptr) {
-    const char *const emptyIfNull = optionalMessage == nullptr ? "" : optionalMessage;
+        status_t status, const char* optionalMessage = nullptr) {
+    const char* const emptyIfNull = optionalMessage == nullptr ? "" : optionalMessage;
     // From binder::Status instructions:
     //  Prefer a generic exception code when possible, then a service specific
     //  code, and finally a status_t for low level failures or legacy support.
@@ -109,6 +111,28 @@ static inline ::android::binder::Status binderStatusFromStatusT(
 
     // throw a ServiceSpecificException.
     return Status::fromServiceSpecificError(status, emptyIfNull);
+}
+
+static inline Rect fromARect(ARect rect) {
+    return Rect(rect.left, rect.top, rect.right, rect.bottom);
+}
+
+static inline ARect toARect(Rect rect) {
+    ARect aRect;
+
+    aRect.left = rect.left;
+    aRect.top = rect.top;
+    aRect.right = rect.right;
+    aRect.bottom = rect.bottom;
+    return aRect;
+}
+
+static inline ARect toARect(int32_t left, int32_t top, int32_t right, int32_t bottom) {
+    return toARect(Rect(left, top, right, bottom));
+}
+
+static inline ARect toARect(int32_t width, int32_t height) {
+    return toARect(Rect(width, height));
 }
 
 } // namespace android::gui::aidl_utils

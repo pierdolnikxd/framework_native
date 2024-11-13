@@ -92,12 +92,13 @@ public:
     MOCK_METHOD(InputDeviceIdentifier, getDeviceIdentifier, (int32_t deviceId), (const));
     MOCK_METHOD(int32_t, getDeviceControllerNumber, (int32_t deviceId), (const));
     MOCK_METHOD(std::optional<PropertyMap>, getConfiguration, (int32_t deviceId), (const));
-    MOCK_METHOD(status_t, getAbsoluteAxisInfo,
-                (int32_t deviceId, int axis, RawAbsoluteAxisInfo* outAxisInfo), (const));
+    MOCK_METHOD(std::optional<RawAbsoluteAxisInfo>, getAbsoluteAxisInfo,
+                (int32_t deviceId, int axis), (const));
     MOCK_METHOD(bool, hasRelativeAxis, (int32_t deviceId, int axis), (const));
     MOCK_METHOD(bool, hasInputProperty, (int32_t deviceId, int property), (const));
     MOCK_METHOD(bool, hasMscEvent, (int32_t deviceId, int mscEvent), (const));
-    MOCK_METHOD(void, addKeyRemapping, (int32_t deviceId, int fromKeyCode, int toKeyCode), (const));
+    MOCK_METHOD(void, setKeyRemapping,
+                (int32_t deviceId, (const std::map<int32_t, int32_t>& keyRemapping)), (const));
     MOCK_METHOD(status_t, mapKey,
                 (int32_t deviceId, int scanCode, int usageCode, int32_t metaState,
                  int32_t* outKeycode, int32_t* outMetaState, uint32_t* outFlags),
@@ -132,7 +133,7 @@ public:
     MOCK_METHOD(int32_t, getKeyCodeState, (int32_t deviceId, int32_t keyCode), (const, override));
     MOCK_METHOD(int32_t, getSwitchState, (int32_t deviceId, int32_t sw), (const, override));
 
-    MOCK_METHOD(status_t, getAbsoluteAxisValue, (int32_t deviceId, int32_t axis, int32_t* outValue),
+    MOCK_METHOD(std::optional<int32_t>, getAbsoluteAxisValue, (int32_t deviceId, int32_t axis),
                 (const, override));
     MOCK_METHOD(base::Result<std::vector<int32_t>>, getMtSlotValues,
                 (int32_t deviceId, int32_t axis, size_t slotCount), (const, override));
@@ -188,6 +189,7 @@ public:
     MOCK_METHOD(void, notifyPointerDisplayIdChanged,
                 (ui::LogicalDisplayId displayId, const FloatPoint& position), (override));
     MOCK_METHOD(bool, isInputMethodConnectionActive, (), (override));
+    MOCK_METHOD(void, notifyMouseCursorFadedOnTyping, (), (override));
 };
 
 class MockInputDevice : public InputDevice {
@@ -197,6 +199,7 @@ public:
           : InputDevice(context, id, generation, identifier) {}
 
     MOCK_METHOD(uint32_t, getSources, (), (const, override));
+    MOCK_METHOD(std::optional<DisplayViewport>, getAssociatedViewport, (), (const));
     MOCK_METHOD(bool, isEnabled, (), ());
 
     MOCK_METHOD(void, dump, (std::string& dump, const std::string& eventHubDevStr), ());
@@ -244,8 +247,6 @@ public:
 
     MOCK_METHOD(int32_t, getMetaState, (), ());
     MOCK_METHOD(void, updateMetaState, (int32_t keyCode), ());
-
-    MOCK_METHOD(void, addKeyRemapping, (int32_t fromKeyCode, int32_t toKeyCode), ());
 
     MOCK_METHOD(void, setKeyboardType, (KeyboardType keyboardType), ());
 

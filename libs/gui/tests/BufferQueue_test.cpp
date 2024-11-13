@@ -1430,19 +1430,15 @@ TEST_F(BufferQueueTest, TestBqSetFrameRateFlagBuildTimeIsSet) {
 }
 
 struct BufferItemConsumerSetFrameRateListener : public BufferItemConsumer {
-    BufferItemConsumerSetFrameRateListener(const sp<IGraphicBufferConsumer>& consumer)
-          : BufferItemConsumer(consumer, GRALLOC_USAGE_SW_READ_OFTEN, 1) {}
+    BufferItemConsumerSetFrameRateListener() : BufferItemConsumer(GRALLOC_USAGE_SW_READ_OFTEN, 1) {}
 
     MOCK_METHOD(void, onSetFrameRate, (float, int8_t, int8_t), (override));
 };
 
 TEST_F(BufferQueueTest, TestSetFrameRate) {
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-
     sp<BufferItemConsumerSetFrameRateListener> bufferConsumer =
-            sp<BufferItemConsumerSetFrameRateListener>::make(consumer);
+            sp<BufferItemConsumerSetFrameRateListener>::make();
+    sp<IGraphicBufferProducer> producer = bufferConsumer->getSurface()->getIGraphicBufferProducer();
 
     EXPECT_CALL(*bufferConsumer, onSetFrameRate(12.34f, 1, 0)).Times(1);
     producer->setFrameRate(12.34f, 1, 0);
@@ -1493,14 +1489,10 @@ struct OneshotOnDequeuedListener final : public BufferItemConsumer::FrameAvailab
 
 // See b/270004534
 TEST(BufferQueueThreading, TestProducerDequeueConsumerDestroy) {
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-
     sp<BufferItemConsumer> bufferConsumer =
-            sp<BufferItemConsumer>::make(consumer, GRALLOC_USAGE_SW_READ_OFTEN, 2);
+            sp<BufferItemConsumer>::make(GRALLOC_USAGE_SW_READ_OFTEN, 2);
     ASSERT_NE(nullptr, bufferConsumer.get());
-    sp<Surface> surface = sp<Surface>::make(producer);
+    sp<Surface> surface = bufferConsumer->getSurface();
     native_window_set_buffers_format(surface.get(), PIXEL_FORMAT_RGBA_8888);
     native_window_set_buffers_dimensions(surface.get(), 100, 100);
 
@@ -1531,14 +1523,10 @@ TEST(BufferQueueThreading, TestProducerDequeueConsumerDestroy) {
 }
 
 TEST_F(BufferQueueTest, TestAdditionalOptions) {
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-
     sp<BufferItemConsumer> bufferConsumer =
-            sp<BufferItemConsumer>::make(consumer, GRALLOC_USAGE_SW_READ_OFTEN, 2);
+            sp<BufferItemConsumer>::make(GRALLOC_USAGE_SW_READ_OFTEN, 2);
     ASSERT_NE(nullptr, bufferConsumer.get());
-    sp<Surface> surface = sp<Surface>::make(producer);
+    sp<Surface> surface = bufferConsumer->getSurface();
     native_window_set_buffers_format(surface.get(), PIXEL_FORMAT_RGBA_8888);
     native_window_set_buffers_dimensions(surface.get(), 100, 100);
 

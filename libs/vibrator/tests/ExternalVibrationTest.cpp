@@ -57,11 +57,14 @@ TEST_F(ExternalVibrationTest, TestReadAndWriteToParcel) {
     originalAttrs.usage = AUDIO_USAGE_ASSISTANCE_SONIFICATION;
     originalAttrs.source = AUDIO_SOURCE_VOICE_COMMUNICATION;
     originalAttrs.flags = AUDIO_FLAG_BYPASS_MUTE;
+
     sp<TestVibrationController> vibrationController = new TestVibrationController();
     ASSERT_NE(vibrationController, nullptr);
+
     sp<os::ExternalVibration> original =
             new os::ExternalVibration(uid, pkg, originalAttrs, vibrationController);
     ASSERT_NE(original, nullptr);
+
     EXPECT_EQ(original->getUid(), uid);
     EXPECT_EQ(original->getPackage(), pkg);
     EXPECT_EQ(original->getAudioAttributes().content_type, originalAttrs.content_type);
@@ -69,18 +72,22 @@ TEST_F(ExternalVibrationTest, TestReadAndWriteToParcel) {
     EXPECT_EQ(original->getAudioAttributes().source, originalAttrs.source);
     EXPECT_EQ(original->getAudioAttributes().flags, originalAttrs.flags);
     EXPECT_EQ(original->getController(), vibrationController);
+
     audio_attributes_t defaultAttrs;
     defaultAttrs.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
     defaultAttrs.usage = AUDIO_USAGE_UNKNOWN;
     defaultAttrs.source = AUDIO_SOURCE_DEFAULT;
     defaultAttrs.flags = AUDIO_FLAG_NONE;
+
     sp<os::ExternalVibration> parceled =
             new os::ExternalVibration(0, std::string(""), defaultAttrs, nullptr);
     ASSERT_NE(parceled, nullptr);
+
     Parcel parcel;
     original->writeToParcel(&parcel);
     parcel.setDataPosition(0);
     parceled->readFromParcel(&parcel);
+
     EXPECT_EQ(parceled->getUid(), uid);
     EXPECT_EQ(parceled->getPackage(), pkg);
     EXPECT_EQ(parceled->getAudioAttributes().content_type, originalAttrs.content_type);
@@ -93,12 +100,17 @@ TEST_F(ExternalVibrationTest, TestReadAndWriteToParcel) {
 TEST_F(ExternalVibrationTest, TestExternalVibrationScaleToHapticScale) {
     os::ExternalVibrationScale externalVibrationScale;
     externalVibrationScale.scaleLevel = ScaleLevel::SCALE_HIGH;
+    externalVibrationScale.scaleFactor = 0.5f;
     externalVibrationScale.adaptiveHapticsScale = 0.8f;
+
     os::HapticScale hapticScale =
             os::ExternalVibration::externalVibrationScaleToHapticScale(externalVibrationScale);
-    // Check scale factor is forwarded.
+
+    // Check scale factors are forwarded.
     EXPECT_EQ(hapticScale.getLevel(), HapticLevel::HIGH);
+    EXPECT_EQ(hapticScale.getScaleFactor(), 0.5f);
     EXPECT_EQ(hapticScale.getAdaptiveScaleFactor(), 0.8f);
+
     // Check conversion for all levels.
     EXPECT_EQ(toHapticLevel(ScaleLevel::SCALE_MUTE), HapticLevel::MUTE);
     EXPECT_EQ(toHapticLevel(ScaleLevel::SCALE_VERY_LOW), HapticLevel::VERY_LOW);

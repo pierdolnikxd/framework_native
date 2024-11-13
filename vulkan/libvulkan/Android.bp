@@ -29,6 +29,18 @@ ndk_library {
     unversioned_until: "current",
 }
 
+aconfig_declarations {
+    name: "libvulkan_flags",
+    package: "com.android.graphics.libvulkan.flags",
+    container: "system",
+    srcs: ["libvulkan_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "libvulkanflags",
+    aconfig_declarations: "libvulkan_flags",
+}
+
 cc_library_shared {
     name: "libvulkan",
     llndk: {
@@ -110,5 +122,8 @@ cc_library_shared {
         "android.hardware.graphics.common@1.0",
         "libSurfaceFlingerProp",
     ],
-    static_libs: ["libgrallocusage"],
+    static_libs: [
+        "libgrallocusage",
+        "libvulkanflags",
+    ],
 }

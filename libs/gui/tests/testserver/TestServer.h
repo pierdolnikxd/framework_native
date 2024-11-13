@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,16 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
+namespace android {
 
-#include <gui/DisplayCaptureArgs.h>
+/*
+ * Main method for a libgui ITestServer server.
+ *
+ * This must be called without any binder setup having been done, because you can't fork and do
+ * binder things once ProcessState is set up.
+ * @param name The service name of the test server to start.
+ * @return retcode
+ */
+int TestServerMain(const char* name);
 
-namespace android::gui {
-
-struct LayerCaptureArgs : CaptureArgs {
-    sp<IBinder> layerHandle;
-    bool childrenOnly{false};
-
-    status_t writeToParcel(Parcel* output) const override;
-    status_t readFromParcel(const Parcel* input) override;
-};
-
-}; // namespace android::gui
+} // namespace android

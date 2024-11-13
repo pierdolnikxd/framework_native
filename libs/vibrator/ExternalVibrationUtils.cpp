@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "ExternalVibrationUtils"
+
 #include <cstring>
 
 #include <android_os_vibrator.h>
@@ -20,6 +22,7 @@
 #include <algorithm>
 #include <math.h>
 
+#include <log/log.h>
 #include <vibrator/ExternalVibrationUtils.h>
 
 namespace android::os {
@@ -29,6 +32,7 @@ static constexpr float HAPTIC_SCALE_VERY_LOW_RATIO = 2.0f / 3.0f;
 static constexpr float HAPTIC_SCALE_LOW_RATIO = 3.0f / 4.0f;
 static constexpr float HAPTIC_MAX_AMPLITUDE_FLOAT = 1.0f;
 static constexpr float SCALE_GAMMA = 0.65f; // Same as VibrationEffect.SCALE_GAMMA
+static constexpr float SCALE_LEVEL_GAIN = 1.4f; // Same as VibrationConfig.DEFAULT_SCALE_LEVEL_GAIN
 
 float getOldHapticScaleGamma(HapticLevel level) {
     switch (level) {
@@ -60,9 +64,34 @@ float getOldHapticMaxAmplitudeRatio(HapticLevel level) {
     }
 }
 
-/* Same as VibrationScaler.SCALE_LEVEL_* */
-float getHapticScaleFactor(HapticLevel level) {
-    switch (level) {
+/* Same as VibrationScaler.getScaleFactor */
+float getHapticScaleFactor(HapticScale scale) {
+    if (android_os_vibrator_haptics_scale_v2_enabled()) {
+        if (scale.getScaleFactor() >= 0) {
+            // ExternalVibratorService provided the scale factor, use it.
+            return scale.getScaleFactor();
+        }
+
+        HapticLevel level = scale.getLevel();
+        switch (level) {
+            case HapticLevel::MUTE:
+                return 0.0f;
+            case HapticLevel::NONE:
+                return 1.0f;
+            default:
+                float scaleFactor = powf(SCALE_LEVEL_GAIN, static_cast<int32_t>(level));
+                if (scaleFactor <= 0) {
+                    ALOGE("Invalid scale factor %.2f for level %d, using fallback to 1.0",
+                          scaleFactor, static_cast<int32_t>(level));
+                    scaleFactor = 1.0f;
+                }
+                return scaleFactor;
+        }
+    }
+    // Same as VibrationScaler.SCALE_FACTOR_*
+    switch (scale.getLevel()) {
+        case HapticLevel::MUTE:
+            return 0.0f;
         case HapticLevel::VERY_LOW:
             return 0.6f;
         case HapticLevel::LOW:
@@ -83,6 +112,14 @@ float applyOldHapticScale(float value, float gamma, float maxAmplitudeRatio) {
 }
 
 float applyNewHapticScale(float value, float scaleFactor) {
+    if (android_os_vibrator_haptics_scale_v2_enabled()) {
+        if (scaleFactor <= 1 || value == 0) {
+            return value * scaleFactor;
+        } else {
+            // Using S * x / (1 + (S - 1) * x^2) as the scale up function to converge to 1.0.
+            return (value * scaleFactor) / (1 + (scaleFactor - 1) * value * value);
+        }
+    }
     float scale = powf(scaleFactor, 1.0f / SCALE_GAMMA);
     if (scaleFactor <= 1) {
         // Scale down is simply a gamma corrected application of scaleFactor to the intensity.
@@ -115,21 +152,22 @@ void applyHapticScale(float* buffer, size_t length, HapticScale scale) {
         return;
     }
     HapticLevel hapticLevel = scale.getLevel();
-    float scaleFactor = getHapticScaleFactor(hapticLevel);
+    float scaleFactor = getHapticScaleFactor(scale);
     float adaptiveScaleFactor = scale.getAdaptiveScaleFactor();
     float oldGamma = getOldHapticScaleGamma(hapticLevel);
     float oldMaxAmplitudeRatio = getOldHapticMaxAmplitudeRatio(hapticLevel);
 
     for (size_t i = 0; i < length; i++) {
         if (hapticLevel != HapticLevel::NONE) {
-            if (android_os_vibrator_fix_audio_coupled_haptics_scaling()) {
+            if (android_os_vibrator_fix_audio_coupled_haptics_scaling() ||
+                android_os_vibrator_haptics_scale_v2_enabled()) {
                 buffer[i] = applyNewHapticScale(buffer[i], scaleFactor);
             } else {
                 buffer[i] = applyOldHapticScale(buffer[i], oldGamma, oldMaxAmplitudeRatio);
             }
         }
 
-        if (adaptiveScaleFactor != 1.0f) {
+        if (adaptiveScaleFactor >= 0 && adaptiveScaleFactor != 1.0f) {
             buffer[i] *= adaptiveScaleFactor;
         }
     }
