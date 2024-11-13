@@ -951,6 +951,11 @@ bool Scheduler::updateFrameRateOverridesLocked(GlobalSignals consideredSignals,
     return mFrameRateOverrideMappings.updateFrameRateOverridesByContent(frameRateOverrides);
 }
 
+void Scheduler::addBufferStuffedUids(BufferStuffingMap bufferStuffedUids) {
+    if (!mRenderEventThread) return;
+    mRenderEventThread->addBufferStuffedUids(std::move(bufferStuffedUids));
+}
+
 void Scheduler::promotePacesetterDisplay(PhysicalDisplayId pacesetterId, PromotionParams params) {
     std::shared_ptr<VsyncSchedule> pacesetterVsyncSchedule;
     {

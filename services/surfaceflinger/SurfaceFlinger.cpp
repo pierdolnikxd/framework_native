@@ -64,11 +64,13 @@
 #include <ftl/concat.h>
 #include <ftl/fake_guard.h>
 #include <ftl/future.h>
+#include <ftl/small_map.h>
 #include <ftl/unit.h>
 #include <gui/AidlUtil.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <gui/IProducerListener.h>
+#include <gui/JankInfo.h>
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
@@ -3072,11 +3074,39 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
 
     const TimePoint presentTime = TimePoint::now();
 
+    // The Uids of layer owners that are in buffer stuffing mode, and their elevated
+    // buffer counts. Messages to start recovery are sent exclusively to these Uids.
+    BufferStuffingMap bufferStuffedUids;
+
     // Set presentation information before calling Layer::releasePendingBuffer, such that jank
     // information from previous' frame classification is already available when sending jank info
     // to clients, so they get jank classification as early as possible.
     mFrameTimeline->setSfPresent(presentTime.ns(), pacesetterPresentFenceTime,
                                  pacesetterGpuCompositionDoneFenceTime);
+
+    // Find and register any layers that are in buffer stuffing mode
+    const auto& presentFrames = mFrameTimeline->getPresentFrames();
+
+    for (const auto& frame : presentFrames) {
+        const auto& layer = mLayerLifecycleManager.getLayerFromId(frame->getLayerId());
+        if (!layer) continue;
+        uint32_t numberQueuedBuffers = layer->pendingBuffers ? layer->pendingBuffers->load() : 0;
+        int32_t jankType = frame->getJankType().value_or(JankType::None);
+        if (jankType & JankType::BufferStuffing &&
+            layer->flags & layer_state_t::eRecoverableFromBufferStuffing) {
+            auto [it, wasEmplaced] =
+                    bufferStuffedUids.try_emplace(layer->ownerUid.val(), numberQueuedBuffers);
+            // Update with maximum number of queued buffers, allows clients drawing
+            // multiple windows to account for the most severely stuffed window
+            if (!wasEmplaced && it->second < numberQueuedBuffers) {
+                it->second = numberQueuedBuffers;
+            }
+        }
+    }
+
+    if (!bufferStuffedUids.empty()) {
+        mScheduler->addBufferStuffedUids(std::move(bufferStuffedUids));
+    }
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
