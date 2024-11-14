@@ -193,6 +193,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(12610, edid->productId);
     EXPECT_TRUE(edid->hashedBlockZeroSerialNumberOpt.has_value());
     EXPECT_EQ(ftl::stable_hash("12345678"), edid->hashedBlockZeroSerialNumberOpt.value());
+    EXPECT_FALSE(edid->hashedDescriptorBlockSerialNumberOpt.has_value());
     EXPECT_EQ(21, edid->manufactureOrModelYear);
     EXPECT_EQ(0, edid->manufactureWeek);
     EXPECT_EQ(26, edid->physicalSizeInCm.width);
@@ -213,6 +214,8 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(10348, edid->productId);
     EXPECT_TRUE(edid->hashedBlockZeroSerialNumberOpt.has_value());
     EXPECT_EQ(ftl::stable_hash("16843009"), edid->hashedBlockZeroSerialNumberOpt.value());
+    EXPECT_TRUE(edid->hashedDescriptorBlockSerialNumberOpt.has_value());
+    EXPECT_EQ(ftl::stable_hash("CN4202137Q"), edid->hashedDescriptorBlockSerialNumberOpt.value());
     EXPECT_EQ(22, edid->manufactureOrModelYear);
     EXPECT_EQ(2, edid->manufactureWeek);
     EXPECT_EQ(64, edid->physicalSizeInCm.width);
@@ -233,6 +236,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(2302, edid->productId);
     EXPECT_TRUE(edid->hashedBlockZeroSerialNumberOpt.has_value());
     EXPECT_EQ(ftl::stable_hash("87654321"), edid->hashedBlockZeroSerialNumberOpt.value());
+    EXPECT_FALSE(edid->hashedDescriptorBlockSerialNumberOpt.has_value());
     EXPECT_EQ(21, edid->manufactureOrModelYear);
     EXPECT_EQ(41, edid->manufactureWeek);
     EXPECT_EQ(16, edid->physicalSizeInCm.width);
@@ -259,6 +263,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(41622, edid->productId);
     EXPECT_TRUE(edid->hashedBlockZeroSerialNumberOpt.has_value());
     EXPECT_EQ(ftl::stable_hash("16843009"), edid->hashedBlockZeroSerialNumberOpt.value());
+    EXPECT_FALSE(edid->hashedDescriptorBlockSerialNumberOpt.has_value());
     EXPECT_EQ(29, edid->manufactureOrModelYear);
     EXPECT_EQ(0, edid->manufactureWeek);
     EXPECT_EQ(128, edid->physicalSizeInCm.width);
@@ -284,6 +289,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ("Hisense", edid->displayName);
     EXPECT_EQ(0, edid->productId);
     EXPECT_FALSE(edid->hashedBlockZeroSerialNumberOpt.has_value());
+    EXPECT_FALSE(edid->hashedDescriptorBlockSerialNumberOpt.has_value());
     EXPECT_EQ(29, edid->manufactureOrModelYear);
     EXPECT_EQ(18, edid->manufactureWeek);
     EXPECT_EQ(0, edid->physicalSizeInCm.width);
@@ -310,6 +316,7 @@ TEST(DisplayIdentificationTest, parseEdid) {
     EXPECT_EQ(9373, edid->productId);
     EXPECT_TRUE(edid->hashedBlockZeroSerialNumberOpt.has_value());
     EXPECT_EQ(ftl::stable_hash("11223344"), edid->hashedBlockZeroSerialNumberOpt.value());
+    EXPECT_FALSE(edid->hashedDescriptorBlockSerialNumberOpt.has_value());
     EXPECT_EQ(23, edid->manufactureOrModelYear);
     EXPECT_EQ(0xff, edid->manufactureWeek);
     EXPECT_EQ(52, edid->physicalSizeInCm.width);

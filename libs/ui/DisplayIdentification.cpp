@@ -249,7 +249,8 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
     view = view.subspan(kDescriptorOffset);
 
     std::string_view displayName;
-    std::string_view serialNumber;
+    std::string_view descriptorBlockSerialNumber;
+    std::optional<uint64_t> hashedDescriptorBlockSNOpt = std::nullopt;
     std::string_view asciiText;
     ui::Size preferredDTDPixelSize;
     ui::Size preferredDTDPhysicalSize;
@@ -274,7 +275,10 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
                     asciiText = parseEdidText(descriptor);
                     break;
                 case 0xff:
-                    serialNumber = parseEdidText(descriptor);
+                    descriptorBlockSerialNumber = parseEdidText(descriptor);
+                    hashedDescriptorBlockSNOpt = descriptorBlockSerialNumber.empty()
+                            ? std::nullopt
+                            : ftl::stable_hash(descriptorBlockSerialNumber);
                     break;
             }
         } else if (isDetailedTimingDescriptor(view)) {
@@ -315,7 +319,7 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
 
     if (modelString.empty()) {
         ALOGW("Invalid EDID: falling back to serial number due to missing display name.");
-        modelString = serialNumber;
+        modelString = descriptorBlockSerialNumber;
     }
     if (modelString.empty()) {
         ALOGW("Invalid EDID: falling back to ASCII text due to missing serial number.");
@@ -369,6 +373,7 @@ std::optional<Edid> parseEdid(const DisplayIdentificationData& edid) {
             .manufacturerId = manufacturerId,
             .productId = productId,
             .hashedBlockZeroSerialNumberOpt = hashedBlockZeroSNOpt,
+            .hashedDescriptorBlockSerialNumberOpt = hashedDescriptorBlockSNOpt,
             .pnpId = *pnpId,
             .modelHash = modelHash,
             .displayName = displayName,

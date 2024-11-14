@@ -70,6 +70,7 @@ struct Edid {
     uint16_t manufacturerId;
     uint16_t productId;
     std::optional<uint64_t> hashedBlockZeroSerialNumberOpt;
+    std::optional<uint64_t> hashedDescriptorBlockSerialNumberOpt;
     PnpId pnpId;
     uint32_t modelHash;
     std::string_view displayName;
