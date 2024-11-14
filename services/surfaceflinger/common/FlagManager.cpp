@@ -123,7 +123,6 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(frame_rate_category_mrr);
     DUMP_READ_ONLY_FLAG(misc1);
     DUMP_READ_ONLY_FLAG(vrr_config);
-    DUMP_READ_ONLY_FLAG(hotplug2);
     DUMP_READ_ONLY_FLAG(hdcp_level_hal);
     DUMP_READ_ONLY_FLAG(multithreaded_present);
     DUMP_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace);
@@ -233,7 +232,6 @@ FLAG_MANAGER_READ_ONLY_FLAG(stable_edid_ids, "debug.sf.stable_edid_ids")
 FLAG_MANAGER_READ_ONLY_FLAG(frame_rate_category_mrr, "debug.sf.frame_rate_category_mrr")
 FLAG_MANAGER_READ_ONLY_FLAG(misc1, "")
 FLAG_MANAGER_READ_ONLY_FLAG(vrr_config, "debug.sf.enable_vrr_config")
-FLAG_MANAGER_READ_ONLY_FLAG(hotplug2, "")
 FLAG_MANAGER_READ_ONLY_FLAG(hdcp_level_hal, "")
 FLAG_MANAGER_READ_ONLY_FLAG(multithreaded_present, "debug.sf.multithreaded_present")
 FLAG_MANAGER_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace, "")

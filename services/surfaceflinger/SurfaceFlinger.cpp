@@ -2248,12 +2248,10 @@ void SurfaceFlinger::onComposerHalHotplugEvent(hal::HWDisplayId hwcDisplayId,
         return;
     }
 
-    if (FlagManager::getInstance().hotplug2()) {
-        // TODO(b/311403559): use enum type instead of int
-        const auto errorCode = static_cast<int32_t>(event);
-        ALOGD("%s: Hotplug error %d for hwcDisplayId %" PRIu64, __func__, errorCode, hwcDisplayId);
-        mScheduler->dispatchHotplugError(errorCode);
-    }
+    // TODO(b/311403559): use enum type instead of int
+    const auto errorCode = static_cast<int32_t>(event);
+    ALOGD("%s: Hotplug error %d for hwcDisplayId %" PRIu64, __func__, errorCode, hwcDisplayId);
+    mScheduler->dispatchHotplugError(errorCode);
 }
 
 void SurfaceFlinger::onComposerHalVsyncPeriodTimingChanged(
@@ -3483,10 +3481,8 @@ bool SurfaceFlinger::configureLocked() {
                         processHotplugConnect(displayId, hwcDisplayId, std::move(*info),
                                               displayString.c_str());
                 if (!activeModeIdOpt) {
-                    if (FlagManager::getInstance().hotplug2()) {
-                        mScheduler->dispatchHotplugError(
-                                static_cast<int32_t>(DisplayHotplugEvent::ERROR_UNKNOWN));
-                    }
+                    mScheduler->dispatchHotplugError(
+                            static_cast<int32_t>(DisplayHotplugEvent::ERROR_UNKNOWN));
                     getHwComposer().disconnectDisplay(displayId);
                     continue;
                 }
