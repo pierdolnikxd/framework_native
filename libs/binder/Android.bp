@@ -829,6 +829,7 @@ aidl_interface {
     backend: {
         rust: {
             apex_available: [
+                "//apex_available:platform",
                 "com.android.virt",
             ],
             enabled: true,
