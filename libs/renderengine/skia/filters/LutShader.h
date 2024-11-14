@@ -28,8 +28,8 @@ namespace skia {
 
 class LutShader {
 public:
-    sk_sp<SkShader> lutShader(sk_sp<SkShader>& input,
-                              std::shared_ptr<gui::DisplayLuts> displayLuts);
+    sk_sp<SkShader> lutShader(sk_sp<SkShader>& input, std::shared_ptr<gui::DisplayLuts> displayLuts,
+                              sk_sp<SkColorSpace> outColorSpace);
 
 private:
     sk_sp<SkShader> generateLutShader(sk_sp<SkShader> input, const std::vector<float>& buffers,

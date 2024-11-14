@@ -42,7 +42,6 @@
 #include <ui/DisplayId.h>
 #include <ui/DisplayMap.h>
 
-#include "Display/DisplayModeRequest.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
 #include "ISchedulerCallback.h"
@@ -333,6 +332,10 @@ public:
     void injectPacesetterDelay(float frameDurationFraction) REQUIRES(kMainThreadContext) {
         mPacesetterFrameDurationFractionToSkip = frameDurationFraction;
     }
+
+    // Propagates a flag to the EventThread indicating that buffer stuffing
+    // recovery should begin.
+    void addBufferStuffedUids(BufferStuffingMap bufferStuffedUids);
 
 private:
     friend class TestableScheduler;
