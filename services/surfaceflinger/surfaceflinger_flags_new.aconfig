@@ -207,6 +207,14 @@ flag {
  } # skip_invisible_windows_in_input
 
 flag {
+  name: "stable_edid_ids"
+  namespace: "core_graphics"
+  description: "Guard use of the new stable EDID-based display IDs system."
+  bug: "352320847"
+  is_fixed_read_only: true
+} # stable_edid_ids
+
+flag {
   name: "true_hdr_screenshots"
   namespace: "core_graphics"
   description: "Enables screenshotting display content in HDR, sans tone mapping"

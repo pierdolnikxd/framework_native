@@ -58,6 +58,7 @@ public:
     bool connected_display() const;
     bool frame_rate_category_mrr() const;
     bool enable_small_area_detection() const;
+    bool stable_edid_ids() const;
     bool misc1() const;
     bool vrr_config() const;
     bool hotplug2() const;
