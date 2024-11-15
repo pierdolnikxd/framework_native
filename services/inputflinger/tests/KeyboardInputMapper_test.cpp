@@ -33,6 +33,7 @@
 #include <input/InputDevice.h>
 #include <ui/LogicalDisplayId.h>
 #include <ui/Rotation.h>
+#include <utils/Errors.h>
 
 #include "EventHub.h"
 #include "InputMapperTest.h"
@@ -45,11 +46,16 @@
 
 namespace android {
 
+using namespace ftl::flag_operators;
 using testing::_;
 using testing::AllOf;
+using testing::AnyOf;
 using testing::Args;
 using testing::DoAll;
+using testing::IsEmpty;
 using testing::Return;
+using testing::ReturnArg;
+using testing::SaveArg;
 using testing::SetArgPointee;
 using testing::VariantWith;
 
@@ -59,7 +65,23 @@ namespace {
 constexpr ui::LogicalDisplayId DISPLAY_ID = ui::LogicalDisplayId::DEFAULT;
 constexpr int32_t DISPLAY_WIDTH = 480;
 constexpr int32_t DISPLAY_HEIGHT = 800;
-constexpr std::optional<uint8_t> NO_PORT = std::nullopt; // no physical port is specified
+
+DisplayViewport createPrimaryViewport(ui::Rotation orientation) {
+    const bool isRotated =
+            orientation == ui::Rotation::Rotation90 || orientation == ui::Rotation::Rotation270;
+    DisplayViewport v;
+    v.displayId = DISPLAY_ID;
+    v.orientation = orientation;
+    v.logicalRight = isRotated ? DISPLAY_HEIGHT : DISPLAY_WIDTH;
+    v.logicalBottom = isRotated ? DISPLAY_WIDTH : DISPLAY_HEIGHT;
+    v.physicalRight = isRotated ? DISPLAY_HEIGHT : DISPLAY_WIDTH;
+    v.physicalBottom = isRotated ? DISPLAY_WIDTH : DISPLAY_HEIGHT;
+    v.deviceWidth = isRotated ? DISPLAY_HEIGHT : DISPLAY_WIDTH;
+    v.deviceHeight = isRotated ? DISPLAY_WIDTH : DISPLAY_HEIGHT;
+    v.isActive = true;
+    v.uniqueId = "local:1";
+    return v;
+}
 
 } // namespace
 
@@ -68,6 +90,8 @@ constexpr std::optional<uint8_t> NO_PORT = std::nullopt; // no physical port is 
  */
 class KeyboardInputMapperUnitTest : public InputMapperUnitTest {
 protected:
+    const KeyboardLayoutInfo DEVICE_KEYBOARD_LAYOUT_INFO = KeyboardLayoutInfo("en-US", "qwerty");
+
     sp<FakeInputReaderPolicy> mFakePolicy;
     const std::unordered_map<int32_t, int32_t> mKeyCodeMap{{KEY_0, AKEYCODE_0},
                                                            {KEY_A, AKEYCODE_A},
@@ -89,9 +113,8 @@ protected:
         InputMapperUnitTest::SetUp();
 
         // set key-codes expected in tests
-        for (const auto& [scanCode, outKeycode] : mKeyCodeMap) {
-            EXPECT_CALL(mMockEventHub, mapKey(EVENTHUB_ID, scanCode, _, _, _, _, _))
-                    .WillRepeatedly(DoAll(SetArgPointee<4>(outKeycode), Return(NO_ERROR)));
+        for (const auto& [evdevCode, outKeycode] : mKeyCodeMap) {
+            addKeyByEvdevCode(evdevCode, outKeycode);
         }
 
         mFakePolicy = sp<FakeInputReaderPolicy>::make();
@@ -102,7 +125,78 @@ protected:
         mMapper = createInputMapper<KeyboardInputMapper>(*mDeviceContext, mReaderConfiguration,
                                                          AINPUT_SOURCE_KEYBOARD);
     }
+
+    void addKeyByEvdevCode(int32_t evdevCode, int32_t keyCode, int32_t flags = 0) {
+        EXPECT_CALL(mMockEventHub, mapKey(EVENTHUB_ID, evdevCode, _, _, _, _, _))
+                .WillRepeatedly([=](int32_t, int32_t, int32_t, int32_t metaState,
+                                    int32_t* outKeycode, int32_t* outMetaState,
+                                    uint32_t* outFlags) {
+                    if (outKeycode != nullptr) {
+                        *outKeycode = keyCode;
+                    }
+                    if (outMetaState != nullptr) {
+                        *outMetaState = metaState;
+                    }
+                    if (outFlags != nullptr) {
+                        *outFlags = flags;
+                    }
+                    return NO_ERROR;
+                });
+    }
+
+    void addKeyByUsageCode(int32_t usageCode, int32_t keyCode, int32_t flags = 0) {
+        EXPECT_CALL(mMockEventHub, mapKey(EVENTHUB_ID, _, usageCode, _, _, _, _))
+                .WillRepeatedly([=](int32_t, int32_t, int32_t, int32_t metaState,
+                                    int32_t* outKeycode, int32_t* outMetaState,
+                                    uint32_t* outFlags) {
+                    if (outKeycode != nullptr) {
+                        *outKeycode = keyCode;
+                    }
+                    if (outMetaState != nullptr) {
+                        *outMetaState = metaState;
+                    }
+                    if (outFlags != nullptr) {
+                        *outFlags = flags;
+                    }
+                    return NO_ERROR;
+                });
+    }
+
+    void setDisplayOrientation(ui::Rotation orientation) {
+        EXPECT_CALL((*mDevice), getAssociatedViewport)
+                .WillRepeatedly(Return(createPrimaryViewport(orientation)));
+        std::list<NotifyArgs> args =
+                mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
+                                     InputReaderConfiguration::Change::DISPLAY_INFO);
+        ASSERT_EQ(0u, args.size());
+    }
+
+    NotifyKeyArgs expectSingleKeyArg(const std::list<NotifyArgs>& args) {
+        EXPECT_EQ(1u, args.size());
+        return std::get<NotifyKeyArgs>(args.front());
+    }
+
+    void testDPadKeyRotation(int32_t originalEvdevCode, int32_t originalKeyCode,
+                             int32_t rotatedKeyCode, ui::LogicalDisplayId displayId = DISPLAY_ID) {
+        std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, originalEvdevCode, 1);
+        NotifyKeyArgs args = expectSingleKeyArg(argsList);
+        ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+        ASSERT_EQ(originalEvdevCode, args.scanCode);
+        ASSERT_EQ(rotatedKeyCode, args.keyCode);
+        ASSERT_EQ(displayId, args.displayId);
+
+        argsList = process(ARBITRARY_TIME, EV_KEY, originalEvdevCode, 0);
+        args = expectSingleKeyArg(argsList);
+        ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+        ASSERT_EQ(originalEvdevCode, args.scanCode);
+        ASSERT_EQ(rotatedKeyCode, args.keyCode);
+        ASSERT_EQ(displayId, args.displayId);
+    }
 };
+
+TEST_F(KeyboardInputMapperUnitTest, GetSources) {
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, mMapper->getSources());
+}
 
 TEST_F(KeyboardInputMapperUnitTest, KeyPressTimestampRecorded) {
     nsecs_t when = ARBITRARY_TIME;
@@ -138,10 +232,496 @@ TEST_F(KeyboardInputMapperUnitTest, RepeatEventsDiscarded) {
                                                              WithScanCode(KEY_0)))));
 }
 
-// TODO(b/283812079): convert the tests below to use InputMapperUnitTest.
+TEST_F(KeyboardInputMapperUnitTest, Process_SimpleKeyPress) {
+    const int32_t USAGE_A = 0x070004;
+    addKeyByEvdevCode(KEY_HOME, AKEYCODE_HOME, POLICY_FLAG_WAKE);
+    addKeyByUsageCode(USAGE_A, AKEYCODE_A, POLICY_FLAG_WAKE);
+
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mMapper->getMetaState());
+
+    // Key down by evdev code.
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
+    NotifyKeyArgs args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AMETA_NONE, args.metaState);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
+
+    // Key up by evdev code.
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_HOME, 0);
+    args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME + 1, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AMETA_NONE, args.metaState);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
+
+    // Key down by usage code.
+    argsList = process(ARBITRARY_TIME, EV_MSC, MSC_SCAN, USAGE_A);
+    argsList += process(ARBITRARY_TIME, EV_KEY, 0, 1);
+    args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(AKEYCODE_A, args.keyCode);
+    ASSERT_EQ(0, args.scanCode);
+    ASSERT_EQ(AMETA_NONE, args.metaState);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
+
+    // Key up by usage code.
+    argsList = process(ARBITRARY_TIME, EV_MSC, MSC_SCAN, USAGE_A);
+    argsList += process(ARBITRARY_TIME + 1, EV_KEY, 0, 0);
+    args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME + 1, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+    ASSERT_EQ(AKEYCODE_A, args.keyCode);
+    ASSERT_EQ(0, args.scanCode);
+    ASSERT_EQ(AMETA_NONE, args.metaState);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, Process_UnknownKey) {
+    const int32_t USAGE_UNKNOWN = 0x07ffff;
+    EXPECT_CALL(mMockEventHub, mapKey(EVENTHUB_ID, KEY_UNKNOWN, USAGE_UNKNOWN, _, _, _, _))
+            .WillRepeatedly(Return(NAME_NOT_FOUND));
+
+    // Key down with unknown scan code or usage code.
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_MSC, MSC_SCAN, USAGE_UNKNOWN);
+    argsList += process(ARBITRARY_TIME, EV_KEY, KEY_UNKNOWN, 1);
+    NotifyKeyArgs args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(0, args.keyCode);
+    ASSERT_EQ(KEY_UNKNOWN, args.scanCode);
+    ASSERT_EQ(AMETA_NONE, args.metaState);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+    ASSERT_EQ(0U, args.policyFlags);
+    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
+
+    // Key up with unknown scan code or usage code.
+    argsList = process(ARBITRARY_TIME, EV_MSC, MSC_SCAN, USAGE_UNKNOWN);
+    argsList += process(ARBITRARY_TIME + 1, EV_KEY, KEY_UNKNOWN, 0);
+    args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME + 1, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+    ASSERT_EQ(0, args.keyCode);
+    ASSERT_EQ(KEY_UNKNOWN, args.scanCode);
+    ASSERT_EQ(AMETA_NONE, args.metaState);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+    ASSERT_EQ(0U, args.policyFlags);
+    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
+}
+
+/**
+ * Ensure that the readTime is set to the time when the EV_KEY is received.
+ */
+TEST_F(KeyboardInputMapperUnitTest, Process_SendsReadTime) {
+    addKeyByEvdevCode(KEY_HOME, AKEYCODE_HOME);
+
+    // Key down
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, /*readTime=*/12, EV_KEY, KEY_HOME, 1);
+    ASSERT_EQ(12, expectSingleKeyArg(argsList).readTime);
+
+    // Key up
+    argsList = process(ARBITRARY_TIME, /*readTime=*/15, EV_KEY, KEY_HOME, 1);
+    ASSERT_EQ(15, expectSingleKeyArg(argsList).readTime);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, Process_ShouldUpdateMetaState) {
+    addKeyByEvdevCode(KEY_LEFTSHIFT, AKEYCODE_SHIFT_LEFT);
+    addKeyByEvdevCode(KEY_A, AKEYCODE_A);
+
+    EXPECT_CALL(mMockInputReaderContext, updateGlobalMetaState()).Times(2);
+
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mMapper->getMetaState());
+
+    // Metakey down.
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_LEFTSHIFT, 1);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, expectSingleKeyArg(argsList).metaState);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, mMapper->getMetaState());
+
+    // Key down.
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_A, 1);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, expectSingleKeyArg(argsList).metaState);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, mMapper->getMetaState());
+
+    // Key up.
+    argsList = process(ARBITRARY_TIME + 2, EV_KEY, KEY_A, 0);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, expectSingleKeyArg(argsList).metaState);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, mMapper->getMetaState());
+
+    // Metakey up.
+    argsList = process(ARBITRARY_TIME + 3, EV_KEY, KEY_LEFTSHIFT, 0);
+    ASSERT_EQ(AMETA_NONE, expectSingleKeyArg(argsList).metaState);
+    ASSERT_EQ(AMETA_NONE, mMapper->getMetaState());
+}
+
+TEST_F(KeyboardInputMapperUnitTest, Process_WhenNotOrientationAware_ShouldNotRotateDPad) {
+    addKeyByEvdevCode(KEY_UP, AKEYCODE_DPAD_UP);
+    addKeyByEvdevCode(KEY_RIGHT, AKEYCODE_DPAD_RIGHT);
+    addKeyByEvdevCode(KEY_DOWN, AKEYCODE_DPAD_DOWN);
+    addKeyByEvdevCode(KEY_LEFT, AKEYCODE_DPAD_LEFT);
+
+    setDisplayOrientation(ui::Rotation::Rotation90);
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_RIGHT));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_DOWN));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_LEFT));
+}
+
+TEST_F(KeyboardInputMapperUnitTest, Process_WhenOrientationAware_ShouldRotateDPad) {
+    addKeyByEvdevCode(KEY_UP, AKEYCODE_DPAD_UP);
+    addKeyByEvdevCode(KEY_RIGHT, AKEYCODE_DPAD_RIGHT);
+    addKeyByEvdevCode(KEY_DOWN, AKEYCODE_DPAD_DOWN);
+    addKeyByEvdevCode(KEY_LEFT, AKEYCODE_DPAD_LEFT);
+
+    mPropertyMap.addProperty("keyboard.orientationAware", "1");
+    mMapper = createInputMapper<KeyboardInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                     AINPUT_SOURCE_KEYBOARD);
+    setDisplayOrientation(ui::ROTATION_0);
+
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_RIGHT));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_DOWN));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_LEFT));
+
+    setDisplayOrientation(ui::ROTATION_90);
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN));
+
+    setDisplayOrientation(ui::ROTATION_180);
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_DOWN));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_LEFT));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_UP));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_RIGHT));
+
+    setDisplayOrientation(ui::ROTATION_270);
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_RIGHT));
+    ASSERT_NO_FATAL_FAILURE(
+            testDPadKeyRotation(KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_DOWN));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_LEFT));
+    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_UP));
+
+    // Special case: if orientation changes while key is down, we still emit the same keycode
+    // in the key up as we did in the key down.
+    setDisplayOrientation(ui::ROTATION_270);
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 1);
+    NotifyKeyArgs args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(KEY_UP, args.scanCode);
+    ASSERT_EQ(AKEYCODE_DPAD_RIGHT, args.keyCode);
+
+    setDisplayOrientation(ui::ROTATION_180);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 0);
+    args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+    ASSERT_EQ(KEY_UP, args.scanCode);
+    ASSERT_EQ(AKEYCODE_DPAD_RIGHT, args.keyCode);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, DisplayIdConfigurationChange_NotOrientationAware) {
+    // If the keyboard is not orientation aware,
+    // key events should not be associated with a specific display id
+    addKeyByEvdevCode(KEY_UP, AKEYCODE_DPAD_UP);
+
+    // Display id should be LogicalDisplayId::INVALID without any display configuration.
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 1);
+    ASSERT_GT(argsList.size(), 0u);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 0);
+    ASSERT_GT(argsList.size(), 0u);
+    ASSERT_EQ(ui::LogicalDisplayId::INVALID, std::get<NotifyKeyArgs>(argsList.front()).displayId);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, DisplayIdConfigurationChange_OrientationAware) {
+    // If the keyboard is orientation aware,
+    // key events should be associated with the internal viewport
+    addKeyByEvdevCode(KEY_UP, AKEYCODE_DPAD_UP);
+
+    mPropertyMap.addProperty("keyboard.orientationAware", "1");
+    mMapper = createInputMapper<KeyboardInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                     AINPUT_SOURCE_KEYBOARD);
+
+    // Display id should be LogicalDisplayId::INVALID without any display configuration.
+    // ^--- already checked by the previous test
+
+    setDisplayOrientation(ui::ROTATION_0);
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 1);
+    ASSERT_GT(argsList.size(), 0u);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 0);
+    ASSERT_GT(argsList.size(), 0u);
+    ASSERT_EQ(DISPLAY_ID, std::get<NotifyKeyArgs>(argsList.front()).displayId);
+
+    constexpr ui::LogicalDisplayId newDisplayId = ui::LogicalDisplayId{2};
+    DisplayViewport newViewport = createPrimaryViewport(ui::ROTATION_0);
+    newViewport.displayId = newDisplayId;
+    EXPECT_CALL((*mDevice), getAssociatedViewport).WillRepeatedly(Return(newViewport));
+    argsList = mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
+                                    InputReaderConfiguration::Change::DISPLAY_INFO);
+    ASSERT_EQ(0u, argsList.size());
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 1);
+    ASSERT_GT(argsList.size(), 0u);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_UP, 0);
+    ASSERT_GT(argsList.size(), 0u);
+    ASSERT_EQ(newDisplayId, std::get<NotifyKeyArgs>(argsList.front()).displayId);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, GetKeyCodeState) {
+    EXPECT_CALL(mMockEventHub, getKeyCodeState(EVENTHUB_ID, AKEYCODE_A))
+            .WillRepeatedly(Return(AKEY_STATE_DOWN));
+    ASSERT_EQ(AKEY_STATE_DOWN, mMapper->getKeyCodeState(AINPUT_SOURCE_ANY, AKEYCODE_A));
+
+    EXPECT_CALL(mMockEventHub, getKeyCodeState(EVENTHUB_ID, AKEYCODE_A))
+            .WillRepeatedly(Return(AKEY_STATE_UP));
+    ASSERT_EQ(AKEY_STATE_UP, mMapper->getKeyCodeState(AINPUT_SOURCE_ANY, AKEYCODE_A));
+}
+
+TEST_F(KeyboardInputMapperUnitTest, GetKeyCodeForKeyLocation) {
+    EXPECT_CALL(mMockEventHub, getKeyCodeForKeyLocation(EVENTHUB_ID, _))
+            .WillRepeatedly(ReturnArg<1>());
+    EXPECT_CALL(mMockEventHub, getKeyCodeForKeyLocation(EVENTHUB_ID, AKEYCODE_Y))
+            .WillRepeatedly(Return(AKEYCODE_Z));
+    ASSERT_EQ(AKEYCODE_Z, mMapper->getKeyCodeForKeyLocation(AKEYCODE_Y))
+            << "If a mapping is available, the result is equal to the mapping";
+
+    ASSERT_EQ(AKEYCODE_A, mMapper->getKeyCodeForKeyLocation(AKEYCODE_A))
+            << "If no mapping is available, the result is the key location";
+}
+
+TEST_F(KeyboardInputMapperUnitTest, GetScanCodeState) {
+    EXPECT_CALL(mMockEventHub, getScanCodeState(EVENTHUB_ID, KEY_A))
+            .WillRepeatedly(Return(AKEY_STATE_DOWN));
+    ASSERT_EQ(AKEY_STATE_DOWN, mMapper->getScanCodeState(AINPUT_SOURCE_ANY, KEY_A));
+
+    EXPECT_CALL(mMockEventHub, getScanCodeState(EVENTHUB_ID, KEY_A))
+            .WillRepeatedly(Return(AKEY_STATE_UP));
+    ASSERT_EQ(AKEY_STATE_UP, mMapper->getScanCodeState(AINPUT_SOURCE_ANY, KEY_A));
+}
+
+TEST_F(KeyboardInputMapperUnitTest, Process_LockedKeysShouldToggleMetaStateAndLeds) {
+    EXPECT_CALL(mMockEventHub,
+                hasLed(EVENTHUB_ID, AnyOf(LED_CAPSL, LED_NUML, LED_SCROLLL /*NOTYPO*/)))
+            .WillRepeatedly(Return(true));
+    bool capsLockLed = true;    // Initially on
+    bool numLockLed = false;    // Initially off
+    bool scrollLockLed = false; // Initially off
+    EXPECT_CALL(mMockEventHub, setLedState(EVENTHUB_ID, LED_CAPSL, _))
+            .WillRepeatedly(SaveArg<2>(&capsLockLed));
+    EXPECT_CALL(mMockEventHub, setLedState(EVENTHUB_ID, LED_NUML, _))
+            .WillRepeatedly(SaveArg<2>(&numLockLed));
+    EXPECT_CALL(mMockEventHub, setLedState(EVENTHUB_ID, LED_SCROLLL /*NOTYPO*/, _))
+            .WillRepeatedly(SaveArg<2>(&scrollLockLed));
+    addKeyByEvdevCode(KEY_CAPSLOCK, AKEYCODE_CAPS_LOCK);
+    addKeyByEvdevCode(KEY_NUMLOCK, AKEYCODE_NUM_LOCK);
+    addKeyByEvdevCode(KEY_SCROLLLOCK, AKEYCODE_SCROLL_LOCK);
+
+    // In real operation, mappers pass new LED states to InputReader (via the context), which then
+    // calls back to the mappers to apply that state. Mimic the same thing here with mocks.
+    int32_t ledMetaState;
+    EXPECT_CALL(mMockInputReaderContext, updateLedMetaState(_))
+            .WillRepeatedly([&](int32_t newState) {
+                ledMetaState = newState;
+                mMapper->updateLedState(false);
+            });
+    EXPECT_CALL(mMockInputReaderContext, getLedMetaState())
+            .WillRepeatedly(testing::ReturnPointee(&ledMetaState));
+
+    ASSERT_THAT(mMapper->reset(ARBITRARY_TIME), IsEmpty());
+
+    // Initial metastate is AMETA_NONE.
+    ASSERT_EQ(AMETA_NONE, mMapper->getMetaState());
+
+    // Initialization should have turned all of the lights off.
+    ASSERT_FALSE(capsLockLed);
+    ASSERT_FALSE(numLockLed);
+    ASSERT_FALSE(scrollLockLed);
+
+    // Toggle caps lock on.
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_CAPSLOCK, 1);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_CAPSLOCK, 0);
+    ASSERT_TRUE(capsLockLed);
+    ASSERT_FALSE(numLockLed);
+    ASSERT_FALSE(scrollLockLed);
+    ASSERT_EQ(AMETA_CAPS_LOCK_ON, mMapper->getMetaState());
+
+    // Toggle num lock on.
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_NUMLOCK, 1);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_NUMLOCK, 0);
+    ASSERT_TRUE(capsLockLed);
+    ASSERT_TRUE(numLockLed);
+    ASSERT_FALSE(scrollLockLed);
+    ASSERT_EQ(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON, mMapper->getMetaState());
+
+    // Toggle caps lock off.
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_CAPSLOCK, 1);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_CAPSLOCK, 0);
+    ASSERT_FALSE(capsLockLed);
+    ASSERT_TRUE(numLockLed);
+    ASSERT_FALSE(scrollLockLed);
+    ASSERT_EQ(AMETA_NUM_LOCK_ON, mMapper->getMetaState());
+
+    // Toggle scroll lock on.
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_SCROLLLOCK, 1);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_SCROLLLOCK, 0);
+    ASSERT_FALSE(capsLockLed);
+    ASSERT_TRUE(numLockLed);
+    ASSERT_TRUE(scrollLockLed);
+    ASSERT_EQ(AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON, mMapper->getMetaState());
+
+    // Toggle num lock off.
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_NUMLOCK, 1);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_NUMLOCK, 0);
+    ASSERT_FALSE(capsLockLed);
+    ASSERT_FALSE(numLockLed);
+    ASSERT_TRUE(scrollLockLed);
+    ASSERT_EQ(AMETA_SCROLL_LOCK_ON, mMapper->getMetaState());
+
+    // Toggle scroll lock off.
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_SCROLLLOCK, 1);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_SCROLLLOCK, 0);
+    ASSERT_FALSE(capsLockLed);
+    ASSERT_FALSE(numLockLed);
+    ASSERT_FALSE(scrollLockLed);
+    ASSERT_EQ(AMETA_NONE, mMapper->getMetaState());
+}
+
+TEST_F(KeyboardInputMapperUnitTest, DisablingDeviceResetsPressedKeys) {
+    const int32_t USAGE_A = 0x070004;
+    addKeyByEvdevCode(KEY_HOME, AKEYCODE_HOME, POLICY_FLAG_WAKE);
+    addKeyByUsageCode(USAGE_A, AKEYCODE_A, POLICY_FLAG_WAKE);
+
+    // Key down by scan code.
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
+    NotifyKeyArgs args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
+    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
+
+    // Disable device, it should synthesize cancellation events for down events.
+    mReaderConfiguration.disabledDevices.insert(DEVICE_ID);
+    argsList = mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
+                                    InputReaderConfiguration::Change::ENABLED_STATE);
+    argsList += mMapper->reset(ARBITRARY_TIME);
+    args = expectSingleKeyArg(argsList);
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
+    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
+    ASSERT_EQ(KEY_HOME, args.scanCode);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED, args.flags);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, Configure_AssignKeyboardLayoutInfo) {
+    std::list<NotifyArgs> unused =
+            mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration, /*changes=*/{});
+
+    int32_t generation = mDevice->getGeneration();
+    mReaderConfiguration.keyboardLayoutAssociations.insert(
+            {mIdentifier.location, DEVICE_KEYBOARD_LAYOUT_INFO});
+
+    unused += mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
+                                   InputReaderConfiguration::Change::KEYBOARD_LAYOUT_ASSOCIATION);
+
+    InputDeviceInfo deviceInfo;
+    mMapper->populateDeviceInfo(deviceInfo);
+    ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.languageTag,
+              deviceInfo.getKeyboardLayoutInfo()->languageTag);
+    ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.layoutType,
+              deviceInfo.getKeyboardLayoutInfo()->layoutType);
+    ASSERT_GT(mDevice->getGeneration(), generation);
+
+    // Call change layout association with the same values: Generation shouldn't change
+    generation = mDevice->getGeneration();
+    unused += mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
+                                   InputReaderConfiguration::Change::KEYBOARD_LAYOUT_ASSOCIATION);
+    ASSERT_EQ(mDevice->getGeneration(), generation);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, LayoutInfoCorrectlyMapped) {
+    EXPECT_CALL(mMockEventHub, getRawLayoutInfo(EVENTHUB_ID))
+            .WillRepeatedly(Return(RawLayoutInfo{.languageTag = "en", .layoutType = "extended"}));
+
+    // Configuration
+    std::list<NotifyArgs> unused =
+            mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration, /*changes=*/{});
+
+    InputDeviceInfo deviceInfo;
+    mMapper->populateDeviceInfo(deviceInfo);
+    ASSERT_EQ("en", deviceInfo.getKeyboardLayoutInfo()->languageTag);
+    ASSERT_EQ("extended", deviceInfo.getKeyboardLayoutInfo()->layoutType);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, Process_GestureEventToSetFlagKeepTouchMode) {
+    addKeyByEvdevCode(KEY_LEFT, AKEYCODE_DPAD_LEFT, POLICY_FLAG_GESTURE);
+
+    // Key down
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_LEFT, 1);
+    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_KEEP_TOUCH_MODE,
+              expectSingleKeyArg(argsList).flags);
+}
+
+TEST_F_WITH_FLAGS(KeyboardInputMapperUnitTest, WakeBehavior_AlphabeticKeyboard,
+                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::input::flags,
+                                                      enable_alphabetic_keyboard_wake))) {
+    // For internal alphabetic devices, keys will trigger wake on key down.
+
+    addKeyByEvdevCode(KEY_A, AKEYCODE_A);
+    addKeyByEvdevCode(KEY_HOME, AKEYCODE_HOME);
+    addKeyByEvdevCode(KEY_PLAYPAUSE, AKEYCODE_MEDIA_PLAY_PAUSE);
+
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_A, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
+
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_A, 0);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
+
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
+
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_HOME, 0);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
+
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_PLAYPAUSE, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
+
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_PLAYPAUSE, 0);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
+}
 
 // --- KeyboardInputMapperTest ---
 
+// TODO(b/283812079): convert the tests for this class, which use multiple mappers each, to use
+//  InputMapperUnitTest.
 class KeyboardInputMapperTest : public InputMapperTest {
 protected:
     void SetUp() override {
@@ -149,21 +729,11 @@ protected:
                                InputDeviceClass::ALPHAKEY);
     }
     const std::string UNIQUE_ID = "local:0";
-    const KeyboardLayoutInfo DEVICE_KEYBOARD_LAYOUT_INFO = KeyboardLayoutInfo("en-US", "qwerty");
-    void prepareDisplay(ui::Rotation orientation);
 
     void testDPadKeyRotation(KeyboardInputMapper& mapper, int32_t originalScanCode,
                              int32_t originalKeyCode, int32_t rotatedKeyCode,
                              ui::LogicalDisplayId displayId = ui::LogicalDisplayId::INVALID);
 };
-
-/* Similar to setDisplayInfoAndReconfigure, but pre-populates all parameters except for the
- * orientation.
- */
-void KeyboardInputMapperTest::prepareDisplay(ui::Rotation orientation) {
-    setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, orientation, UNIQUE_ID,
-                                 NO_PORT, ViewportType::INTERNAL);
-}
 
 void KeyboardInputMapperTest::testDPadKeyRotation(KeyboardInputMapper& mapper,
                                                   int32_t originalScanCode, int32_t originalKeyCode,
@@ -184,461 +754,6 @@ void KeyboardInputMapperTest::testDPadKeyRotation(KeyboardInputMapper& mapper,
     ASSERT_EQ(originalScanCode, args.scanCode);
     ASSERT_EQ(rotatedKeyCode, args.keyCode);
     ASSERT_EQ(displayId, args.displayId);
-}
-
-TEST_F(KeyboardInputMapperTest, GetSources) {
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, mapper.getSources());
-}
-
-TEST_F(KeyboardInputMapperTest, Process_SimpleKeyPress) {
-    const int32_t USAGE_A = 0x070004;
-    const int32_t USAGE_UNKNOWN = 0x07ffff;
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, USAGE_A, AKEYCODE_A, POLICY_FLAG_WAKE);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_NUMLOCK, AKEYCODE_NUM_LOCK, POLICY_FLAG_WAKE);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_CAPSLOCK, AKEYCODE_CAPS_LOCK, POLICY_FLAG_WAKE);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_SCROLLLOCK, AKEYCODE_SCROLL_LOCK, POLICY_FLAG_WAKE);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    // Initial metastate is AMETA_NONE.
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
-
-    // Key down by scan code.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DEVICE_ID, args.deviceId);
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
-    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
-    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
-    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
-    ASSERT_EQ(KEY_HOME, args.scanCode);
-    ASSERT_EQ(AMETA_NONE, args.metaState);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
-
-    // Key up by scan code.
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_HOME, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DEVICE_ID, args.deviceId);
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
-    ASSERT_EQ(ARBITRARY_TIME + 1, args.eventTime);
-    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
-    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
-    ASSERT_EQ(KEY_HOME, args.scanCode);
-    ASSERT_EQ(AMETA_NONE, args.metaState);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
-
-    // Key down by usage code.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_MSC, MSC_SCAN, USAGE_A);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, 0, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DEVICE_ID, args.deviceId);
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
-    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
-    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
-    ASSERT_EQ(AKEYCODE_A, args.keyCode);
-    ASSERT_EQ(0, args.scanCode);
-    ASSERT_EQ(AMETA_NONE, args.metaState);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
-
-    // Key up by usage code.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_MSC, MSC_SCAN, USAGE_A);
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, 0, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DEVICE_ID, args.deviceId);
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
-    ASSERT_EQ(ARBITRARY_TIME + 1, args.eventTime);
-    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
-    ASSERT_EQ(AKEYCODE_A, args.keyCode);
-    ASSERT_EQ(0, args.scanCode);
-    ASSERT_EQ(AMETA_NONE, args.metaState);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
-
-    // Key down with unknown scan code or usage code.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_MSC, MSC_SCAN, USAGE_UNKNOWN);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UNKNOWN, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DEVICE_ID, args.deviceId);
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
-    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
-    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
-    ASSERT_EQ(0, args.keyCode);
-    ASSERT_EQ(KEY_UNKNOWN, args.scanCode);
-    ASSERT_EQ(AMETA_NONE, args.metaState);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
-    ASSERT_EQ(0U, args.policyFlags);
-    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
-
-    // Key up with unknown scan code or usage code.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_MSC, MSC_SCAN, USAGE_UNKNOWN);
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_UNKNOWN, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DEVICE_ID, args.deviceId);
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
-    ASSERT_EQ(ARBITRARY_TIME + 1, args.eventTime);
-    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
-    ASSERT_EQ(0, args.keyCode);
-    ASSERT_EQ(KEY_UNKNOWN, args.scanCode);
-    ASSERT_EQ(AMETA_NONE, args.metaState);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
-    ASSERT_EQ(0U, args.policyFlags);
-    ASSERT_EQ(ARBITRARY_TIME, args.downTime);
-}
-
-TEST_F(KeyboardInputMapperTest, Process_KeyRemapping) {
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_A, 0, AKEYCODE_A, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_B, 0, AKEYCODE_B, 0);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    mFakeEventHub->setKeyRemapping(EVENTHUB_ID, {{AKEYCODE_A, AKEYCODE_B}});
-    // Key down by scan code.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_A, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AKEYCODE_B, args.keyCode);
-
-    // Key up by scan code.
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_A, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AKEYCODE_B, args.keyCode);
-}
-
-/**
- * Ensure that the readTime is set to the time when the EV_KEY is received.
- */
-TEST_F(KeyboardInputMapperTest, Process_SendsReadTime) {
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    NotifyKeyArgs args;
-
-    // Key down
-    process(mapper, ARBITRARY_TIME, /*readTime=*/12, EV_KEY, KEY_HOME, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(12, args.readTime);
-
-    // Key up
-    process(mapper, ARBITRARY_TIME, /*readTime=*/15, EV_KEY, KEY_HOME, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(15, args.readTime);
-}
-
-TEST_F(KeyboardInputMapperTest, Process_ShouldUpdateMetaState) {
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_LEFTSHIFT, 0, AKEYCODE_SHIFT_LEFT, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_A, 0, AKEYCODE_A, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_NUMLOCK, AKEYCODE_NUM_LOCK, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_CAPSLOCK, AKEYCODE_CAPS_LOCK, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, KEY_SCROLLLOCK, AKEYCODE_SCROLL_LOCK, 0);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    // Initial metastate is AMETA_NONE.
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
-
-    // Metakey down.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_LEFTSHIFT, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, args.metaState);
-    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, mapper.getMetaState());
-    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertUpdateGlobalMetaStateWasCalled());
-
-    // Key down.
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_A, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, args.metaState);
-    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, mapper.getMetaState());
-
-    // Key up.
-    process(mapper, ARBITRARY_TIME + 2, READ_TIME, EV_KEY, KEY_A, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, args.metaState);
-    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, mapper.getMetaState());
-
-    // Metakey up.
-    process(mapper, ARBITRARY_TIME + 3, READ_TIME, EV_KEY, KEY_LEFTSHIFT, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AMETA_NONE, args.metaState);
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
-    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertUpdateGlobalMetaStateWasCalled());
-}
-
-TEST_F(KeyboardInputMapperTest, Process_WhenNotOrientationAware_ShouldNotRotateDPad) {
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_RIGHT, 0, AKEYCODE_DPAD_RIGHT, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_LEFT, 0, AKEYCODE_DPAD_LEFT, 0);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    prepareDisplay(ui::ROTATION_90);
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-                                                KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-                                                KEY_RIGHT, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_RIGHT));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-                                                KEY_DOWN, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_DOWN));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
-                                                KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_LEFT));
-}
-
-TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_RIGHT, 0, AKEYCODE_DPAD_RIGHT, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_LEFT, 0, AKEYCODE_DPAD_LEFT, 0);
-
-    addConfigurationProperty("keyboard.orientationAware", "1");
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    prepareDisplay(ui::ROTATION_0);
-    ASSERT_NO_FATAL_FAILURE(
-            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
-                                                AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
-                                                AKEYCODE_DPAD_DOWN, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
-                                                AKEYCODE_DPAD_LEFT, DISPLAY_ID));
-
-    clearViewports();
-    prepareDisplay(ui::ROTATION_90);
-    ASSERT_NO_FATAL_FAILURE(
-            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
-                                                AKEYCODE_DPAD_UP, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
-                                                AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
-                                                AKEYCODE_DPAD_DOWN, DISPLAY_ID));
-
-    clearViewports();
-    prepareDisplay(ui::ROTATION_180);
-    ASSERT_NO_FATAL_FAILURE(
-            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_DOWN, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
-                                                AKEYCODE_DPAD_LEFT, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
-                                                AKEYCODE_DPAD_UP, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
-                                                AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
-
-    clearViewports();
-    prepareDisplay(ui::ROTATION_270);
-    ASSERT_NO_FATAL_FAILURE(
-            testDPadKeyRotation(mapper, KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_RIGHT, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_RIGHT, AKEYCODE_DPAD_RIGHT,
-                                                AKEYCODE_DPAD_DOWN, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_DOWN, AKEYCODE_DPAD_DOWN,
-                                                AKEYCODE_DPAD_LEFT, DISPLAY_ID));
-    ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper, KEY_LEFT, AKEYCODE_DPAD_LEFT,
-                                                AKEYCODE_DPAD_UP, DISPLAY_ID));
-
-    // Special case: if orientation changes while key is down, we still emit the same keycode
-    // in the key up as we did in the key down.
-    NotifyKeyArgs args;
-    clearViewports();
-    prepareDisplay(ui::ROTATION_270);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
-    ASSERT_EQ(KEY_UP, args.scanCode);
-    ASSERT_EQ(AKEYCODE_DPAD_RIGHT, args.keyCode);
-
-    clearViewports();
-    prepareDisplay(ui::ROTATION_180);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
-    ASSERT_EQ(KEY_UP, args.scanCode);
-    ASSERT_EQ(AKEYCODE_DPAD_RIGHT, args.keyCode);
-}
-
-TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_NotOrientationAware) {
-    // If the keyboard is not orientation aware,
-    // key events should not be associated with a specific display id
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    NotifyKeyArgs args;
-
-    // Display id should be LogicalDisplayId::INVALID without any display configuration.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(ui::LogicalDisplayId::INVALID, args.displayId);
-
-    prepareDisplay(ui::ROTATION_0);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(ui::LogicalDisplayId::INVALID, args.displayId);
-}
-
-TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
-    // If the keyboard is orientation aware,
-    // key events should be associated with the internal viewport
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
-
-    addConfigurationProperty("keyboard.orientationAware", "1");
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    NotifyKeyArgs args;
-
-    // Display id should be LogicalDisplayId::INVALID without any display configuration.
-    // ^--- already checked by the previous test
-
-    setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                 UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DISPLAY_ID, args.displayId);
-
-    constexpr ui::LogicalDisplayId newDisplayId = ui::LogicalDisplayId{2};
-    clearViewports();
-    setDisplayInfoAndReconfigure(newDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
-                                 UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(newDisplayId, args.displayId);
-}
-
-TEST_F(KeyboardInputMapperTest, GetKeyCodeState) {
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    mFakeEventHub->setKeyCodeState(EVENTHUB_ID, AKEYCODE_A, 1);
-    ASSERT_EQ(1, mapper.getKeyCodeState(AINPUT_SOURCE_ANY, AKEYCODE_A));
-
-    mFakeEventHub->setKeyCodeState(EVENTHUB_ID, AKEYCODE_A, 0);
-    ASSERT_EQ(0, mapper.getKeyCodeState(AINPUT_SOURCE_ANY, AKEYCODE_A));
-}
-
-TEST_F(KeyboardInputMapperTest, GetKeyCodeForKeyLocation) {
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    mFakeEventHub->addKeyCodeMapping(EVENTHUB_ID, AKEYCODE_Y, AKEYCODE_Z);
-    ASSERT_EQ(AKEYCODE_Z, mapper.getKeyCodeForKeyLocation(AKEYCODE_Y))
-                                << "If a mapping is available, the result is equal to the mapping";
-
-    ASSERT_EQ(AKEYCODE_A, mapper.getKeyCodeForKeyLocation(AKEYCODE_A))
-                                << "If no mapping is available, the result is the key location";
-}
-
-TEST_F(KeyboardInputMapperTest, GetScanCodeState) {
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    mFakeEventHub->setScanCodeState(EVENTHUB_ID, KEY_A, 1);
-    ASSERT_EQ(1, mapper.getScanCodeState(AINPUT_SOURCE_ANY, KEY_A));
-
-    mFakeEventHub->setScanCodeState(EVENTHUB_ID, KEY_A, 0);
-    ASSERT_EQ(0, mapper.getScanCodeState(AINPUT_SOURCE_ANY, KEY_A));
-}
-
-TEST_F(KeyboardInputMapperTest, MarkSupportedKeyCodes) {
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_A, 0, AKEYCODE_A, 0);
-
-    uint8_t flags[2] = { 0, 0 };
-    ASSERT_TRUE(mapper.markSupportedKeyCodes(AINPUT_SOURCE_ANY, {AKEYCODE_A, AKEYCODE_B}, flags));
-    ASSERT_TRUE(flags[0]);
-    ASSERT_FALSE(flags[1]);
-}
-
-TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleMetaStateAndLeds) {
-    mFakeEventHub->addLed(EVENTHUB_ID, LED_CAPSL, true /*initially on*/);
-    mFakeEventHub->addLed(EVENTHUB_ID, LED_NUML, false /*initially off*/);
-    mFakeEventHub->addLed(EVENTHUB_ID, LED_SCROLLL, false /*initially off*/);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_CAPSLOCK, 0, AKEYCODE_CAPS_LOCK, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_NUMLOCK, 0, AKEYCODE_NUM_LOCK, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    // Initial metastate is AMETA_NONE.
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
-
-    // Initialization should have turned all of the lights off.
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
-
-    // Toggle caps lock on.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_CAPSLOCK, 1);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_CAPSLOCK, 0);
-    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
-    ASSERT_EQ(AMETA_CAPS_LOCK_ON, mapper.getMetaState());
-
-    // Toggle num lock on.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 1);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 0);
-    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
-    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
-    ASSERT_EQ(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON, mapper.getMetaState());
-
-    // Toggle caps lock off.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_CAPSLOCK, 1);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_CAPSLOCK, 0);
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
-    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
-    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
-
-    // Toggle scroll lock on.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_SCROLLLOCK, 1);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_SCROLLLOCK, 0);
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
-    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
-    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
-    ASSERT_EQ(AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON, mapper.getMetaState());
-
-    // Toggle num lock off.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 1);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_NUMLOCK, 0);
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
-    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
-    ASSERT_EQ(AMETA_SCROLL_LOCK_ON, mapper.getMetaState());
-
-    // Toggle scroll lock off.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_SCROLLLOCK, 1);
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_SCROLLLOCK, 0);
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
-    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
 }
 
 TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
@@ -893,126 +1008,6 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleInMultiDevices) {
     ASSERT_EQ(AMETA_NONE, mapper2.getMetaState());
 }
 
-TEST_F(KeyboardInputMapperTest, Process_DisabledDevice) {
-    const int32_t USAGE_A = 0x070004;
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
-    mFakeEventHub->addKey(EVENTHUB_ID, 0, USAGE_A, AKEYCODE_A, POLICY_FLAG_WAKE);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    // Key down by scan code.
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(DEVICE_ID, args.deviceId);
-    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, args.source);
-    ASSERT_EQ(ARBITRARY_TIME, args.eventTime);
-    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
-    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
-    ASSERT_EQ(KEY_HOME, args.scanCode);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, args.flags);
-
-    // Disable device, it should synthesize cancellation events for down events.
-    mFakePolicy->addDisabledDevice(DEVICE_ID);
-    configureDevice(InputReaderConfiguration::Change::ENABLED_STATE);
-
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
-    ASSERT_EQ(AKEYCODE_HOME, args.keyCode);
-    ASSERT_EQ(KEY_HOME, args.scanCode);
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED, args.flags);
-}
-
-TEST_F(KeyboardInputMapperTest, Configure_AssignKeyboardLayoutInfo) {
-    constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    std::list<NotifyArgs> unused =
-            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                    /*changes=*/{});
-
-    uint32_t generation = mReader->getContext()->getGeneration();
-    mFakePolicy->addKeyboardLayoutAssociation(DEVICE_LOCATION, DEVICE_KEYBOARD_LAYOUT_INFO);
-
-    unused += mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                                 InputReaderConfiguration::Change::KEYBOARD_LAYOUT_ASSOCIATION);
-
-    InputDeviceInfo deviceInfo = mDevice->getDeviceInfo();
-    ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.languageTag,
-              deviceInfo.getKeyboardLayoutInfo()->languageTag);
-    ASSERT_EQ(DEVICE_KEYBOARD_LAYOUT_INFO.layoutType,
-              deviceInfo.getKeyboardLayoutInfo()->layoutType);
-    ASSERT_TRUE(mReader->getContext()->getGeneration() != generation);
-
-    // Call change layout association with the same values: Generation shouldn't change
-    generation = mReader->getContext()->getGeneration();
-    mFakePolicy->addKeyboardLayoutAssociation(DEVICE_LOCATION, DEVICE_KEYBOARD_LAYOUT_INFO);
-    unused += mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                                 InputReaderConfiguration::Change::KEYBOARD_LAYOUT_ASSOCIATION);
-    ASSERT_TRUE(mReader->getContext()->getGeneration() == generation);
-}
-
-TEST_F(KeyboardInputMapperTest, LayoutInfoCorrectlyMapped) {
-    mFakeEventHub->setRawLayoutInfo(EVENTHUB_ID,
-                                    RawLayoutInfo{.languageTag = "en", .layoutType = "extended"});
-
-    // Configuration
-    constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    InputReaderConfiguration config;
-    std::list<NotifyArgs> unused = mDevice->configure(ARBITRARY_TIME, config, /*changes=*/{});
-
-    ASSERT_EQ("en", mDevice->getDeviceInfo().getKeyboardLayoutInfo()->languageTag);
-    ASSERT_EQ("extended", mDevice->getDeviceInfo().getKeyboardLayoutInfo()->layoutType);
-}
-
-TEST_F(KeyboardInputMapperTest, Process_GesureEventToSetFlagKeepTouchMode) {
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_LEFT, 0, AKEYCODE_DPAD_LEFT, POLICY_FLAG_GESTURE);
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-    NotifyKeyArgs args;
-
-    // Key down
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_LEFT, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_KEEP_TOUCH_MODE, args.flags);
-}
-
-TEST_F_WITH_FLAGS(KeyboardInputMapperTest, WakeBehavior_AlphabeticKeyboard,
-        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::input::flags,
-                                            enable_alphabetic_keyboard_wake))) {
-    // For internal alphabetic devices, keys will trigger wake on key down.
-
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_A, 0, AKEYCODE_A, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_PLAYPAUSE, 0, AKEYCODE_MEDIA_PLAY_PAUSE, 0);
-
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
-
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_A, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_A, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
-
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_HOME, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
-
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_PLAYPAUSE, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_PLAYPAUSE, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
-}
-
 /**
  * When there is more than one KeyboardInputMapper for an InputDevice, each mapper should produce
  * events that use the shared keyboard source across all mappers. This is to ensure that each
@@ -1060,21 +1055,34 @@ TEST_F(KeyboardInputMapperTest, UsesSharedKeyboardSource) {
 
 // --- KeyboardInputMapperTest_ExternalAlphabeticDevice ---
 
-class KeyboardInputMapperTest_ExternalAlphabeticDevice : public InputMapperTest {
+class KeyboardInputMapperTest_ExternalAlphabeticDevice : public KeyboardInputMapperUnitTest {
 protected:
     void SetUp() override {
-        InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::KEYBOARD |
-                               InputDeviceClass::ALPHAKEY | InputDeviceClass::EXTERNAL);
+        InputMapperUnitTest::SetUp();
+        ON_CALL((*mDevice), getSources).WillByDefault(Return(AINPUT_SOURCE_KEYBOARD));
+        ON_CALL((*mDevice), getKeyboardType).WillByDefault(Return(KeyboardType::ALPHABETIC));
+        ON_CALL((*mDevice), isExternal).WillByDefault(Return(true));
+        EXPECT_CALL(mMockEventHub, getDeviceClasses(EVENTHUB_ID))
+                .WillRepeatedly(Return(InputDeviceClass::KEYBOARD | InputDeviceClass::ALPHAKEY |
+                                       InputDeviceClass::EXTERNAL));
+        mMapper = createInputMapper<KeyboardInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                         AINPUT_SOURCE_KEYBOARD);
     }
 };
 
 // --- KeyboardInputMapperTest_ExternalNonAlphabeticDevice ---
 
-class KeyboardInputMapperTest_ExternalNonAlphabeticDevice : public InputMapperTest {
+class KeyboardInputMapperTest_ExternalNonAlphabeticDevice : public KeyboardInputMapperUnitTest {
 protected:
     void SetUp() override {
-        InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::KEYBOARD |
-                               InputDeviceClass::EXTERNAL);
+        InputMapperUnitTest::SetUp();
+        ON_CALL((*mDevice), getSources).WillByDefault(Return(AINPUT_SOURCE_KEYBOARD));
+        ON_CALL((*mDevice), getKeyboardType).WillByDefault(Return(KeyboardType::NON_ALPHABETIC));
+        ON_CALL((*mDevice), isExternal).WillByDefault(Return(true));
+        EXPECT_CALL(mMockEventHub, getDeviceClasses(EVENTHUB_ID))
+                .WillRepeatedly(Return(InputDeviceClass::KEYBOARD | InputDeviceClass::EXTERNAL));
+        mMapper = createInputMapper<KeyboardInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                         AINPUT_SOURCE_KEYBOARD);
     }
 };
 
@@ -1082,104 +1090,77 @@ TEST_F(KeyboardInputMapperTest_ExternalAlphabeticDevice, WakeBehavior_Alphabetic
     // For external devices, keys will trigger wake on key down. Media keys should also trigger
     // wake if triggered from external devices.
 
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_PLAY, 0, AKEYCODE_MEDIA_PLAY, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_PLAYPAUSE, 0, AKEYCODE_MEDIA_PLAY_PAUSE,
-                          POLICY_FLAG_WAKE);
+    addKeyByEvdevCode(KEY_HOME, AKEYCODE_HOME);
+    addKeyByEvdevCode(KEY_PLAY, AKEYCODE_MEDIA_PLAY);
+    addKeyByEvdevCode(KEY_PLAYPAUSE, AKEYCODE_MEDIA_PLAY_PAUSE, POLICY_FLAG_WAKE);
 
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_HOME, 0);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_HOME, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_PLAY, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_PLAY, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_PLAY, 0);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_PLAY, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_PLAYPAUSE, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_PLAYPAUSE, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_PLAYPAUSE, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_PLAYPAUSE, 0);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 }
 
 TEST_F(KeyboardInputMapperTest_ExternalNonAlphabeticDevice, WakeBehavior_NonAlphabeticKeyboard) {
     // For external devices, keys will trigger wake on key down. Media keys should not trigger
     // wake if triggered from external non-alphaebtic keyboard (e.g. headsets).
 
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_PLAY, 0, AKEYCODE_MEDIA_PLAY, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_PLAYPAUSE, 0, AKEYCODE_MEDIA_PLAY_PAUSE,
-                          POLICY_FLAG_WAKE);
+    addKeyByEvdevCode(KEY_PLAY, AKEYCODE_MEDIA_PLAY);
+    addKeyByEvdevCode(KEY_PLAYPAUSE, AKEYCODE_MEDIA_PLAY_PAUSE, POLICY_FLAG_WAKE);
 
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_PLAY, 1);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_PLAY, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_PLAY, 0);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_PLAY, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_PLAYPAUSE, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_PLAYPAUSE, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
-
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_PLAYPAUSE, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_PLAYPAUSE, 0);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 }
 
 TEST_F(KeyboardInputMapperTest_ExternalAlphabeticDevice, DoNotWakeByDefaultBehavior) {
     // Tv Remote key's wake behavior is prescribed by the keylayout file.
 
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_HOME, 0, AKEYCODE_HOME, POLICY_FLAG_WAKE);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
-    mFakeEventHub->addKey(EVENTHUB_ID, KEY_PLAY, 0, AKEYCODE_MEDIA_PLAY, POLICY_FLAG_WAKE);
+    addKeyByEvdevCode(KEY_HOME, AKEYCODE_HOME, POLICY_FLAG_WAKE);
+    addKeyByEvdevCode(KEY_DOWN, AKEYCODE_DPAD_DOWN);
+    addKeyByEvdevCode(KEY_PLAY, AKEYCODE_MEDIA_PLAY, POLICY_FLAG_WAKE);
 
-    addConfigurationProperty("keyboard.doNotWakeByDefault", "1");
-    KeyboardInputMapper& mapper =
-            constructAndAddMapper<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD);
+    mPropertyMap.addProperty("keyboard.doNotWakeByDefault", "1");
+    mMapper = createInputMapper<KeyboardInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                     AINPUT_SOURCE_KEYBOARD);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_HOME, 1);
-    NotifyKeyArgs args;
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    std::list<NotifyArgs> argsList = process(ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_HOME, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_HOME, 0);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_DOWN, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_DOWN, 1);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_DOWN, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(uint32_t(0), args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_DOWN, 0);
+    ASSERT_EQ(uint32_t(0), expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_PLAY, 1);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    argsList = process(ARBITRARY_TIME, EV_KEY, KEY_PLAY, 1);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 
-    process(mapper, ARBITRARY_TIME + 1, READ_TIME, EV_KEY, KEY_PLAY, 0);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
+    argsList = process(ARBITRARY_TIME + 1, EV_KEY, KEY_PLAY, 0);
+    ASSERT_EQ(POLICY_FLAG_WAKE, expectSingleKeyArg(argsList).policyFlags);
 }
 
 } // namespace android
