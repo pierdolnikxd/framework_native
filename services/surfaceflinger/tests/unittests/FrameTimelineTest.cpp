@@ -158,6 +158,7 @@ public:
                 a.presentTime == b.presentTime;
     }
 
+    NO_THREAD_SAFETY_ANALYSIS
     const std::map<int64_t, TimelineItem>& getPredictions() const {
         return mTokenManager->mPredictions;
     }
