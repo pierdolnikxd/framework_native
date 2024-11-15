@@ -201,9 +201,9 @@ protected:
         releasedItems.resize(1+extraDiscardedBuffers);
         for (size_t i = 0; i < releasedItems.size(); i++) {
             ASSERT_EQ(NO_ERROR, consumer->acquireBuffer(&releasedItems[i], 0));
-            ASSERT_EQ(NO_ERROR, consumer->releaseBuffer(releasedItems[i].mSlot,
-                    releasedItems[i].mFrameNumber, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR,
-                    Fence::NO_FENCE));
+            ASSERT_EQ(NO_ERROR,
+                      consumer->releaseBuffer(releasedItems[i].mSlot, releasedItems[i].mFrameNumber,
+                                              Fence::NO_FENCE));
         }
         int32_t expectedReleaseCb = (enableReleasedCb ? releasedItems.size() : 0);
         if (hasSurfaceListener) {
