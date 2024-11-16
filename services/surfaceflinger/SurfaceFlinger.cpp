@@ -6263,7 +6263,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
     }
     // Numbers from 1000 to 1045 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1045) {
+    if (code >= 1000 && code <= 1046) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -6795,6 +6795,15 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     return NO_ERROR;
                 }
                 return err;
+            }
+            // Introduce jank to HWC
+            case 1046: {
+                int32_t jankDelayMs = 0;
+                if (data.readInt32(&jankDelayMs) != NO_ERROR) {
+                    return BAD_VALUE;
+                }
+                mScheduler->setDebugPresentDelay(TimePoint::fromNs(ms2ns(jankDelayMs)));
+                return NO_ERROR;
             }
         }
     }

@@ -337,6 +337,8 @@ public:
     // recovery should begin.
     void addBufferStuffedUids(BufferStuffingMap bufferStuffedUids);
 
+    void setDebugPresentDelay(TimePoint delay) { mDebugPresentDelay = delay; }
+
 private:
     friend class TestableScheduler;
 
@@ -602,6 +604,8 @@ private:
 
     FrameRateOverrideMappings mFrameRateOverrideMappings;
     SmallAreaDetectionAllowMappings mSmallAreaDetectionAllowMappings;
+
+    std::atomic<std::optional<TimePoint>> mDebugPresentDelay;
 };
 
 } // namespace scheduler
