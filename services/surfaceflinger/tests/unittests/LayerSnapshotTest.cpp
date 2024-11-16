@@ -1550,6 +1550,9 @@ TEST_F(LayerSnapshotTest, propagateDropInputMode) {
 }
 
 TEST_F(LayerSnapshotTest, NonVisibleLayerWithInput) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              skip_invisible_windows_in_input,
+                      false);
     LayerHierarchyTestBase::createRootLayer(3);
     setColor(3, {-1._hf, -1._hf, -1._hf});
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
@@ -1573,6 +1576,39 @@ TEST_F(LayerSnapshotTest, NonVisibleLayerWithInput) {
         }
     });
     EXPECT_TRUE(foundInputLayer);
+}
+
+TEST_F(LayerSnapshotTest, NonVisibleLayerWithInputShouldNotBeIncluded) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              skip_invisible_windows_in_input,
+                      true);
+    LayerHierarchyTestBase::createRootLayer(3);
+    setColor(3, {-1._hf, -1._hf, -1._hf});
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    std::vector<TransactionState> transactions;
+    transactions.emplace_back();
+    transactions.back().states.push_back({});
+    transactions.back().states.front().state.what = layer_state_t::eInputInfoChanged;
+    transactions.back().states.front().layerId = 3;
+    transactions.back().states.front().state.windowInfoHandle = sp<gui::WindowInfoHandle>::make();
+    auto inputInfo = transactions.back().states.front().state.windowInfoHandle->editInfo();
+    inputInfo->token = sp<BBinder>::make();
+    hideLayer(3);
+    mLifecycleManager.applyTransactions(transactions);
+
+    update(mSnapshotBuilder);
+
+    bool foundInputLayer = false;
+    mSnapshotBuilder.forEachInputSnapshot([&](const frontend::LayerSnapshot& snapshot) {
+        if (snapshot.uniqueSequence == 3) {
+            EXPECT_TRUE(
+                    snapshot.inputInfo.inputConfig.test(gui::WindowInfo::InputConfig::NOT_VISIBLE));
+            EXPECT_FALSE(snapshot.isVisible);
+            foundInputLayer = true;
+        }
+    });
+    EXPECT_FALSE(foundInputLayer);
 }
 
 TEST_F(LayerSnapshotTest, ForEachSnapshotsWithPredicate) {
