@@ -97,6 +97,7 @@ public:
     bool display_config_error_hal() const;
     bool connected_display_hdr() const;
     bool deprecate_frame_tracker() const;
+    bool skip_invisible_windows_in_input() const;
 
 protected:
     // overridden for unit tests
