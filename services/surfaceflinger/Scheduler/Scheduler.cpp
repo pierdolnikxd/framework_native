@@ -234,7 +234,7 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
             if (FlagManager::getInstance().vrr_config()) {
                 compositor.sendNotifyExpectedPresentHint(pacesetterPtr->displayId);
             }
-            mSchedulerCallback.onCommitNotComposited(pacesetterPtr->displayId);
+            mSchedulerCallback.onCommitNotComposited();
             return;
         }
     }
