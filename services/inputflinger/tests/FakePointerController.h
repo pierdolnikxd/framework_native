@@ -48,6 +48,7 @@ public:
     void setSkipScreenshotFlagForDisplay(ui::LogicalDisplayId displayId) override;
     void clearSkipScreenshotFlags() override;
     void fade(Transition) override;
+    ui::Transform getDisplayTransform() const override;
 
     void assertViewportSet(ui::LogicalDisplayId displayId);
     void assertViewportNotSet();

@@ -313,30 +313,89 @@ void PointerChoreographer::processPointerDeviceMotionEventLocked(NotifyMotionArg
 
 void PointerChoreographer::handleUnconsumedDeltaLocked(PointerControllerInterface& pc,
                                                        const FloatPoint& unconsumedDelta) {
+    // Display topology is in rotated coordinate space and Pointer controller returns and expects
+    // values in the un-rotated coordinate space. So we need to transform delta and cursor position
+    // back to the rotated coordinate space to lookup adjacent display in the display topology.
+    const auto& sourceDisplayTransform = pc.getDisplayTransform();
+    const vec2 rotatedUnconsumedDelta =
+            transformWithoutTranslation(sourceDisplayTransform,
+                                        {unconsumedDelta.x, unconsumedDelta.y});
+    const FloatPoint cursorPosition = pc.getPosition();
+    const vec2 rotatedCursorPosition =
+            sourceDisplayTransform.transform(cursorPosition.x, cursorPosition.y);
+
+    // To find out the boundary that cursor is crossing we are checking delta in x and y direction
+    // respectively. This prioritizes x direction over y.
+    // In practise, majority of cases we only have non-zero values in either x or y coordinates,
+    // except sometimes near the corners.
+    // In these cases this behaviour is not noticeable. We also do not apply unconsumed delta on
+    // the destination display for the same reason.
+    DisplayPosition sourceBoundary;
+    float cursorOffset = 0.0f;
+    if (rotatedUnconsumedDelta.x > 0) {
+        sourceBoundary = DisplayPosition::RIGHT;
+        cursorOffset = rotatedCursorPosition.y;
+    } else if (rotatedUnconsumedDelta.x < 0) {
+        sourceBoundary = DisplayPosition::LEFT;
+        cursorOffset = rotatedCursorPosition.y;
+    } else if (rotatedUnconsumedDelta.y > 0) {
+        sourceBoundary = DisplayPosition::BOTTOM;
+        cursorOffset = rotatedCursorPosition.x;
+    } else {
+        sourceBoundary = DisplayPosition::TOP;
+        cursorOffset = rotatedCursorPosition.x;
+    }
+
     const ui::LogicalDisplayId sourceDisplayId = pc.getDisplayId();
-    const auto& sourceViewport = *findViewportByIdLocked(sourceDisplayId);
-    std::optional<const DisplayViewport*> destination =
-            findDestinationDisplayLocked(sourceViewport, unconsumedDelta);
-    if (!destination) {
-        // no adjacent display
+    std::optional<std::pair<const DisplayViewport*, float /*offset*/>> destination =
+            findDestinationDisplayLocked(sourceDisplayId, sourceBoundary, cursorOffset);
+    if (!destination.has_value()) {
+        // No matching adjacent display
         return;
     }
 
-    const DisplayViewport* destinationViewport = *destination;
-
-    if (mMousePointersByDisplay.find(destinationViewport->displayId) !=
+    const DisplayViewport& destinationViewport = *destination->first;
+    const float destinationOffset = destination->second;
+    if (mMousePointersByDisplay.find(destinationViewport.displayId) !=
         mMousePointersByDisplay.end()) {
         LOG(FATAL) << "A cursor already exists on destination display"
-                   << destinationViewport->displayId;
+                   << destinationViewport.displayId;
     }
-    mDefaultMouseDisplayId = destinationViewport->displayId;
+    mDefaultMouseDisplayId = destinationViewport.displayId;
     auto pcNode = mMousePointersByDisplay.extract(sourceDisplayId);
-    pcNode.key() = destinationViewport->displayId;
+    pcNode.key() = destinationViewport.displayId;
     mMousePointersByDisplay.insert(std::move(pcNode));
 
-    // This will place cursor at the center of the target display for now
-    // TODO (b/367660694) place the cursor at the appropriate position in destination display
-    pc.setDisplayViewport(*destinationViewport);
+    // Before updating the viewport and moving the cursor to appropriate location in the destination
+    // viewport, we need to temporarily hide the cursor. This will prevent it from appearing at the
+    // center of the display in any intermediate frames.
+    pc.fade(PointerControllerInterface::Transition::IMMEDIATE);
+    pc.setDisplayViewport(destinationViewport);
+    vec2 destinationPosition =
+            calculateDestinationPosition(destinationViewport, cursorOffset - destinationOffset,
+                                         sourceBoundary);
+
+    // Transform position back to un-rotated coordinate space before sending it to controller
+    destinationPosition = pc.getDisplayTransform().inverse().transform(destinationPosition.x,
+                                                                       destinationPosition.y);
+    pc.setPosition(destinationPosition.x, destinationPosition.y);
+    pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+}
+
+vec2 PointerChoreographer::calculateDestinationPosition(const DisplayViewport& destinationViewport,
+                                                        float pointerOffset,
+                                                        DisplayPosition sourceBoundary) {
+    // destination is opposite of the source boundary
+    switch (sourceBoundary) {
+        case DisplayPosition::RIGHT:
+            return {0, pointerOffset}; // left edge
+        case DisplayPosition::TOP:
+            return {pointerOffset, destinationViewport.logicalBottom}; // bottom edge
+        case DisplayPosition::LEFT:
+            return {destinationViewport.logicalRight, pointerOffset}; // right edge
+        case DisplayPosition::BOTTOM:
+            return {pointerOffset, 0}; // top edge
+    }
 }
 
 void PointerChoreographer::processDrawingTabletEventLocked(const android::NotifyMotionArgs& args) {
@@ -951,10 +1010,11 @@ void PointerChoreographer::populateFakeDisplayTopologyLocked(
 
     // create a fake topology assuming following order
     // default-display (top-edge) -> next-display (right-edge) -> next-display (right-edge) ...
-    // ┌─────────┬─────────┐
-    // │ next    │ next 2  │ ...
-    // ├─────────┼─────────┘
-    // │ default │
+    // This also adds a 100px offset on corresponding edge for better manual testing
+    //   ┌────────┐
+    //   │ next   ├─────────┐
+    // ┌─└───────┐┤ next 2  │ ...
+    // │ default │└─────────┘
     // └─────────┘
     mTopology.clear();
 
@@ -965,13 +1025,15 @@ void PointerChoreographer::populateFakeDisplayTopologyLocked(
             continue;
         }
         if (previousDisplay == ui::LogicalDisplayId::DEFAULT) {
-            mTopology[previousDisplay].push_back({displayInfo.displayId, DisplayPosition::TOP, 0});
+            mTopology[previousDisplay].push_back(
+                    {displayInfo.displayId, DisplayPosition::TOP, 100});
             mTopology[displayInfo.displayId].push_back(
-                    {previousDisplay, DisplayPosition::BOTTOM, 0});
+                    {previousDisplay, DisplayPosition::BOTTOM, -100});
         } else {
             mTopology[previousDisplay].push_back(
-                    {displayInfo.displayId, DisplayPosition::RIGHT, 0});
-            mTopology[displayInfo.displayId].push_back({previousDisplay, DisplayPosition::LEFT, 0});
+                    {displayInfo.displayId, DisplayPosition::RIGHT, 100});
+            mTopology[displayInfo.displayId].push_back(
+                    {previousDisplay, DisplayPosition::LEFT, -100});
         }
         previousDisplay = displayInfo.displayId;
     }
@@ -982,34 +1044,17 @@ void PointerChoreographer::populateFakeDisplayTopologyLocked(
     }
 }
 
-std::optional<const DisplayViewport*> PointerChoreographer::findDestinationDisplayLocked(
-        const DisplayViewport& sourceViewport, const FloatPoint& unconsumedDelta) const {
-    DisplayPosition sourceBoundary;
-    if (unconsumedDelta.x > 0) {
-        sourceBoundary = DisplayPosition::RIGHT;
-    } else if (unconsumedDelta.x < 0) {
-        sourceBoundary = DisplayPosition::LEFT;
-    } else if (unconsumedDelta.y > 0) {
-        sourceBoundary = DisplayPosition::BOTTOM;
-    } else {
-        sourceBoundary = DisplayPosition::TOP;
-    }
-
-    // Choreographer works in un-rotate coordinate space so we need to rotate boundary by viewport
-    // orientation to find the rotated boundary
-    constexpr int MOD = ftl::to_underlying(ui::Rotation::ftl_last) + 1;
-    sourceBoundary = static_cast<DisplayPosition>(
-            (ftl::to_underlying(sourceBoundary) + ftl::to_underlying(sourceViewport.orientation)) %
-            MOD);
-
-    const auto& destination = mTopology.find(sourceViewport.displayId);
-    if (destination == mTopology.end()) {
+std::optional<std::pair<const DisplayViewport*, float /*offset*/>>
+PointerChoreographer::findDestinationDisplayLocked(const ui::LogicalDisplayId sourceDisplayId,
+                                                   const DisplayPosition sourceBoundary,
+                                                   float cursorOffset) const {
+    const auto& sourceNode = mTopology.find(sourceDisplayId);
+    if (sourceNode == mTopology.end()) {
         // Topology is likely out of sync with viewport info, wait for it to be updated
-        LOG(WARNING) << "Source display missing from topology " << sourceViewport.displayId;
+        LOG(WARNING) << "Source display missing from topology " << sourceDisplayId;
         return std::nullopt;
     }
-
-    for (const auto& adjacentDisplay : destination->second) {
+    for (const AdjacentDisplay& adjacentDisplay : sourceNode->second) {
         if (adjacentDisplay.position != sourceBoundary) {
             continue;
         }
@@ -1018,11 +1063,18 @@ std::optional<const DisplayViewport*> PointerChoreographer::findDestinationDispl
         if (destinationViewport == nullptr) {
             // Topology is likely out of sync with viewport info, wait for them to be updated
             LOG(WARNING) << "Cannot find viewport for adjacent display "
-                         << adjacentDisplay.displayId << "of source display "
-                         << sourceViewport.displayId;
-            break;
+                         << adjacentDisplay.displayId << "of source display " << sourceDisplayId;
+            continue;
         }
-        return destinationViewport;
+        // target position must be within target display boundary
+        const int32_t edgeSize =
+                sourceBoundary == DisplayPosition::TOP || sourceBoundary == DisplayPosition::BOTTOM
+                ? (destinationViewport->logicalRight - destinationViewport->logicalLeft)
+                : (destinationViewport->logicalBottom - destinationViewport->logicalTop);
+        if (cursorOffset >= adjacentDisplay.offsetPx &&
+            cursorOffset <= adjacentDisplay.offsetPx + edgeSize) {
+            return std::make_pair(destinationViewport, adjacentDisplay.offsetPx);
+        }
     }
     return std::nullopt;
 }

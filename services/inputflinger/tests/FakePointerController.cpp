@@ -195,4 +195,8 @@ void FakePointerController::clearSpots() {
     mSpotsByDisplay.clear();
 }
 
+ui::Transform FakePointerController::getDisplayTransform() const {
+    return ui::Transform();
+}
+
 } // namespace android

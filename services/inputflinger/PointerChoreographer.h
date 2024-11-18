@@ -114,11 +114,11 @@ public:
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
     // TODO(b/362719483) remove these when real topology is available
-    enum class DisplayPosition : int32_t {
-        RIGHT = 0,
-        TOP = 1,
-        LEFT = 2,
-        BOTTOM = 3,
+    enum class DisplayPosition {
+        RIGHT,
+        TOP,
+        LEFT,
+        BOTTOM,
         ftl_last = BOTTOM,
     };
 
@@ -177,9 +177,12 @@ private:
     void populateFakeDisplayTopologyLocked(const std::vector<gui::DisplayInfo>& displayInfos)
             REQUIRES(getLock());
 
-    std::optional<const DisplayViewport*> findDestinationDisplayLocked(
-            const DisplayViewport& sourceViewport, const FloatPoint& unconsumedDelta) const
-            REQUIRES(getLock());
+    std::optional<std::pair<const DisplayViewport*, float /*offset*/>> findDestinationDisplayLocked(
+            const ui::LogicalDisplayId sourceDisplayId, const DisplayPosition sourceBoundary,
+            float cursorOffset) const REQUIRES(getLock());
+
+    static vec2 calculateDestinationPosition(const DisplayViewport& destinationViewport,
+                                             float pointerOffset, DisplayPosition sourceBoundary);
 
     std::unordered_map<ui::LogicalDisplayId, std::vector<AdjacentDisplay>> mTopology
             GUARDED_BY(getLock());
