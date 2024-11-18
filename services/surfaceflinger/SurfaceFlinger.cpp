@@ -2552,7 +2552,7 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
     }
 
     {
-        SFTRACE_NAME("LLM:commitChanges");
+        SFTRACE_NAME("LayerLifecycleManager:commitChanges");
         mLayerLifecycleManager.commitChanges();
     }
 
