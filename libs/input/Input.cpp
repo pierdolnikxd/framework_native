@@ -705,15 +705,17 @@ float MotionEvent::getAxisValue(int32_t axis, size_t pointerIndex) const {
 const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
         size_t pointerIndex, size_t historicalIndex) const {
     if (CC_UNLIKELY(pointerIndex < 0 || pointerIndex >= getPointerCount())) {
-        LOG(FATAL) << __func__ << ": Invalid pointer index " << pointerIndex << " for " << *this;
+        LOG(FATAL) << __func__ << ": Invalid pointer index " << pointerIndex
+                   << "; should be between >0 and ≤" << getPointerCount();
     }
     if (CC_UNLIKELY(historicalIndex < 0 || historicalIndex > getHistorySize())) {
-        LOG(FATAL) << __func__ << ": Invalid historical index " << historicalIndex << " for "
-                   << *this;
+        LOG(FATAL) << __func__ << ": Invalid historical index " << historicalIndex
+                   << "; should be >0 and ≤" << getHistorySize();
     }
     const size_t position = historicalIndex * getPointerCount() + pointerIndex;
     if (CC_UNLIKELY(position < 0 || position >= mSamplePointerCoords.size())) {
-        LOG(FATAL) << __func__ << ": Invalid array index " << position << " for " << *this;
+        LOG(FATAL) << __func__ << ": Invalid array index " << position << "; should be >0 and ≤"
+                   << mSamplePointerCoords.size();
     }
     return &mSamplePointerCoords[position];
 }
