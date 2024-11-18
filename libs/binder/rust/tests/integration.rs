@@ -1038,6 +1038,34 @@ mod tests {
         assert!(deleted.load(Ordering::Relaxed));
     }
 
+    #[test]
+    fn test_accessor_from_accessor_binder() {
+        let get_connection_info = move |_instance: &str| None;
+        let accessor = Accessor::new("foo.service", get_connection_info);
+        let accessor2 =
+            Accessor::from_binder("foo.service", accessor.as_binder().unwrap()).unwrap();
+        assert_eq!(accessor.as_binder(), accessor2.as_binder());
+    }
+
+    #[test]
+    fn test_accessor_from_non_accessor_binder() {
+        let service_name = "rust_test_ibinder";
+        let _process = ScopedServiceProcess::new(service_name);
+        let binder = binder::get_service(service_name).unwrap();
+        assert!(binder.is_binder_alive());
+
+        let accessor = Accessor::from_binder("rust_test_ibinder", binder);
+        assert!(accessor.is_none());
+    }
+
+    #[test]
+    fn test_accessor_from_wrong_accessor_binder() {
+        let get_connection_info = move |_instance: &str| None;
+        let accessor = Accessor::new("foo.service", get_connection_info);
+        let accessor2 = Accessor::from_binder("NOT.foo.service", accessor.as_binder().unwrap());
+        assert!(accessor2.is_none());
+    }
+
     #[tokio::test]
     async fn reassociate_rust_binder_async() {
         let service_name = "testing_service";
