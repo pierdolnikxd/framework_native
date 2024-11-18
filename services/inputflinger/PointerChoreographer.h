@@ -137,40 +137,12 @@ private:
     void processTouchscreenAndStylusEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processStylusHoverEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processDeviceReset(const NotifyDeviceResetArgs& args);
-    void processPointerDeviceMotionEventLocked(NotifyMotionArgs& newArgs,
-                                               PointerControllerInterface& pc) REQUIRES(mLock);
     void onControllerAddedOrRemovedLocked() REQUIRES(mLock);
     void onPrivacySensitiveDisplaysChangedLocked(
             const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays)
             REQUIRES(mLock);
     void onPrivacySensitiveDisplaysChanged(
             const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays);
-
-    void handleUnconsumedDeltaLocked(PointerControllerInterface& pc, const vec2& unconsumedDelta)
-            REQUIRES(mLock);
-
-    // TODO(b/362719483) remove these when real topology is available
-    enum class DisplayPosition : int32_t {
-        RIGHT = 0,
-        TOP = 1,
-        LEFT = 2,
-        BOTTOM = 3,
-        ftl_last = BOTTOM,
-    };
-
-    struct AdjacentDisplay {
-        ui::LogicalDisplayId displayId;
-        DisplayPosition position;
-        float offsetPx;
-    };
-    void populateFakeDisplayTopology(const std::vector<gui::DisplayInfo>& displayInfos);
-
-    std::optional<AdjacentDisplay> findDestinationDisplayLocked(
-            const DisplayViewport& sourceViewport, const vec2& unconsumedDelta) const
-            REQUIRES(mLock);
-
-    std::unordered_map<ui::LogicalDisplayId, std::vector<AdjacentDisplay>> mTopology
-            GUARDED_BY(mLock);
 
     /* This listener keeps tracks of visible privacy sensitive displays and updates the
      * choreographer if there are any changes.
@@ -239,7 +211,6 @@ protected:
                                   const WindowListenerUnregisterConsumer& unregisterListener);
 
 private:
-    const static bool IS_TOPOLOGY_AWARE;
     const WindowListenerRegisterConsumer mRegisterListener;
     const WindowListenerUnregisterConsumer mUnregisterListener;
 };
