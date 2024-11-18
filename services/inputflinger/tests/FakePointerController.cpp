@@ -148,8 +148,8 @@ bool FakePointerController::isPointerShown() {
     return mIsPointerShown;
 }
 
-void FakePointerController::move(float deltaX, float deltaY) {
-    if (!mEnabled) return;
+vec2 FakePointerController::move(float deltaX, float deltaY) {
+    if (!mEnabled) return {};
 
     mX += deltaX;
     if (mX < mMinX) mX = mMinX;
@@ -157,6 +157,8 @@ void FakePointerController::move(float deltaX, float deltaY) {
     mY += deltaY;
     if (mY < mMinY) mY = mMinY;
     if (mY > mMaxY) mY = mMaxY;
+
+    return {};
 }
 
 void FakePointerController::fade(Transition) {
