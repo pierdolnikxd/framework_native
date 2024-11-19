@@ -110,6 +110,18 @@ APerformanceHintSession* APerformanceHint_createSessionInternal(APerformanceHint
                                         int64_t initialTargetWorkDurationNanos, SessionTag tag);
 
 /**
+ * Creates a session from the Java SDK implementation
+ */
+APerformanceHintSession* APerformanceHint_createSessionFromJava(APerformanceHintManager* manager,
+                                        const int32_t* threadIds, size_t size,
+                                        int64_t initialTargetWorkDurationNanos);
+
+/**
+ * Special method for Java SDK implementation to kill sessions
+ */
+void APerformanceHint_closeSessionFromJava(APerformanceHintSession* session);
+
+/**
  * Forces FMQ to be enabled or disabled, for testing only.
  */
 void APerformanceHint_setUseFMQForTesting(bool enabled);

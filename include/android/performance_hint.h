@@ -49,6 +49,7 @@
 #define ANDROID_NATIVE_PERFORMANCE_HINT_H
 
 #include <sys/cdefs.h>
+#include <jni.h>
 
 /******************************************************************
  *
@@ -201,6 +202,9 @@ int APerformanceHint_reportActualWorkDuration(
 /**
  * Release the performance hint manager pointer acquired via
  * {@link APerformanceHint_createSession}.
+ *
+ * This cannot be used to close a Java PerformanceHintManager.Session, as its
+ * lifecycle is tied to the object in the SDK.
  *
  * @param session The performance hint session instance to release.
  */
@@ -369,6 +373,21 @@ void AWorkDuration_setActualCpuDurationNanos(AWorkDuration* _Nonnull aWorkDurati
  */
 void AWorkDuration_setActualGpuDurationNanos(AWorkDuration* _Nonnull aWorkDuration,
         int64_t actualGpuDurationNanos) __INTRODUCED_IN(__ANDROID_API_V__);
+
+/**
+ * Return the APerformanceHintSession wrapped by a Java PerformanceHintManager.Session object.
+ *
+ * The Java session maintains ownership over the wrapped native session, so it cannot be
+ * closed using {@link APerformanceHint_closeSession}.
+ *
+ * @param env The Java environment where the PerformanceHintManager.Session lives.
+ * @param sessionObj The Java Session to unwrap.
+ *
+ * @return A pointer to the APerformanceHintManager that backs the Java Session.
+ */
+APerformanceHintSession* _Nonnull APerformanceHint_borrowSessionFromJava(
+        JNIEnv* _Nonnull env, jobject _Nonnull sessionObj) __INTRODUCED_IN(36);
+
 
 __END_DECLS
 

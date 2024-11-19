@@ -61,7 +61,6 @@ public:
     bool stable_edid_ids() const;
     bool misc1() const;
     bool vrr_config() const;
-    bool hotplug2() const;
     bool hdcp_level_hal() const;
     bool multithreaded_present() const;
     bool add_sf_skipped_frames_to_trace() const;
