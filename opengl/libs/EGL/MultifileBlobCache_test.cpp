@@ -25,6 +25,10 @@
 #include <fstream>
 #include <memory>
 
+#include <com_android_graphics_egl_flags.h>
+
+using namespace com::android::graphics::egl;
+
 using namespace std::literals;
 
 namespace android {
@@ -458,6 +462,8 @@ TEST_F(MultifileBlobCacheTest, MismatchedCacheVersionClears) {
     // Set one entry
     mMBC->set("abcd", 4, "efgh", 4);
 
+    uint32_t initialCacheVersion = mMBC->getCurrentCacheVersion();
+
     // Close the cache so everything writes out
     mMBC->finish();
     mMBC.reset();
@@ -466,7 +472,7 @@ TEST_F(MultifileBlobCacheTest, MismatchedCacheVersionClears) {
     ASSERT_EQ(getCacheEntries().size(), 1);
 
     // Set a debug cacheVersion
-    std::string newCacheVersion = std::to_string(kMultifileBlobCacheVersion + 1);
+    std::string newCacheVersion = std::to_string(initialCacheVersion + 1);
     ASSERT_TRUE(base::SetProperty("debug.egl.blobcache.cache_version", newCacheVersion.c_str()));
     ASSERT_TRUE(
             base::WaitForProperty("debug.egl.blobcache.cache_version", newCacheVersion.c_str()));

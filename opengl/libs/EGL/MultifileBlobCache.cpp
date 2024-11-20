@@ -38,6 +38,10 @@
 
 #include <utils/JenkinsHash.h>
 
+#include <com_android_graphics_egl_flags.h>
+
+using namespace com::android::graphics::egl;
+
 using namespace std::literals;
 
 constexpr uint32_t kMultifileMagic = 'MFB$';
@@ -80,8 +84,13 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
         return;
     }
 
-    // Set the cache version, override if debug value set
+    // Set the cache version
     mCacheVersion = kMultifileBlobCacheVersion;
+    // Bump the version if we're using flagged features
+    if (flags::multifile_blobcache_advanced_usage()) {
+        mCacheVersion++;
+    }
+    // Override if debug value set
     int debugCacheVersion = base::GetIntProperty("debug.egl.blobcache.cache_version", -1);
     if (debugCacheVersion >= 0) {
         ALOGV("INIT: Using %u as cacheVersion instead of %u", debugCacheVersion, mCacheVersion);

@@ -32,6 +32,10 @@
 
 #include "FileBlobCache.h"
 
+#include <com_android_graphics_egl_flags.h>
+
+using namespace com::android::graphics::egl;
+
 namespace android {
 
 constexpr uint32_t kMultifileBlobCacheVersion = 2;
