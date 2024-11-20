@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <SurfaceFlingerProperties.h>
+#include <android/gui/IActivePictureListener.h>
 #include <android/gui/IDisplayEventConnection.h>
 #include <android/gui/ISurfaceComposer.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
@@ -1012,6 +1013,15 @@ public:
     binder::Status removeJankListener(int32_t /*layerId*/,
                                       const sp<gui::IJankListener>& /*listener*/,
                                       int64_t /*afterVsync*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setActivePictureListener(const sp<gui::IActivePictureListener>&) {
+        return binder::Status::ok();
+    }
+
+    binder::Status getMaxLayerPictureProfiles(const sp<IBinder>& /*display*/,
+                                              int32_t* /*outMaxProfiles*/) {
         return binder::Status::ok();
     }
 

@@ -24,9 +24,11 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/thread_annotations.h>
+#include <android/gui/ActivePicture.h>
 #include <android/gui/BnSurfaceComposer.h>
 #include <android/gui/DisplayStatInfo.h>
 #include <android/gui/DisplayState.h>
+#include <android/gui/IActivePictureListener.h>
 #include <android/gui/IJankListener.h>
 #include <android/gui/ISurfaceComposerClient.h>
 #include <common/trace.h>
@@ -67,6 +69,8 @@
 #include <ui/FenceResult.h>
 
 #include <common/FlagManager.h>
+#include "ActivePictureUpdater.h"
+#include "BackgroundExecutor.h"
 #include "Display/DisplayModeController.h"
 #include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
@@ -93,6 +97,7 @@
 #include "TransactionState.h"
 #include "Utils/OnceFuture.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -591,6 +596,7 @@ private:
     status_t getHdrOutputConversionSupport(bool* outSupport) const;
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on);
     void setGameContentType(const sp<IBinder>& displayToken, bool on);
+    status_t getMaxLayerPictureProfiles(const sp<IBinder>& displayToken, int32_t* outMaxProfiles);
     void setPowerMode(const sp<IBinder>& displayToken, int mode);
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes);
@@ -659,6 +665,8 @@ private:
             int pid, std::optional<TransactionHandler::StalledTransactionInfo>& result);
 
     void updateHdcpLevels(hal::HWDisplayId hwcDisplayId, int32_t connectedLevel, int32_t maxLevel);
+
+    void setActivePictureListener(const sp<gui::IActivePictureListener>& listener);
 
     // IBinder::DeathRecipient overrides:
     void binderDied(const wp<IBinder>& who) override;
@@ -1377,6 +1385,10 @@ private:
     std::unordered_map<DisplayId, sp<HdrLayerInfoReporter>> mHdrLayerInfoListeners
             GUARDED_BY(mStateLock);
 
+    sp<gui::IActivePictureListener> mActivePictureListener GUARDED_BY(mStateLock);
+    bool mHaveNewActivePictureListener GUARDED_BY(mStateLock);
+    ActivePictureUpdater mActivePictureUpdater GUARDED_BY(kMainThreadContext);
+
     std::atomic<ui::Transform::RotationFlags> mActiveDisplayTransformHint;
 
     // Must only be accessed on the main thread.
@@ -1522,6 +1534,8 @@ public:
     binder::Status getHdrOutputConversionSupport(bool* outSupport) override;
     binder::Status setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override;
     binder::Status setGameContentType(const sp<IBinder>& display, bool on) override;
+    binder::Status getMaxLayerPictureProfiles(const sp<IBinder>& display,
+                                              int32_t* outMaxProfiles) override;
     binder::Status captureDisplay(const DisplayCaptureArgs&,
                                   const sp<IScreenCaptureListener>&) override;
     binder::Status captureDisplayById(int64_t, const CaptureArgs&,
@@ -1610,12 +1624,15 @@ public:
     binder::Status flushJankData(int32_t layerId) override;
     binder::Status removeJankListener(int32_t layerId, const sp<gui::IJankListener>& listener,
                                       int64_t afterVsync) override;
+    binder::Status setActivePictureListener(const sp<gui::IActivePictureListener>& listener);
+    binder::Status clearActivePictureListener();
 
 private:
     static const constexpr bool kUsePermissionCache = true;
     status_t checkAccessPermission(bool usePermissionCache = kUsePermissionCache);
     status_t checkControlDisplayBrightnessPermission();
     status_t checkReadFrameBufferPermission();
+    status_t checkObservePictureProfilesPermission();
     static void getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo& info,
                                               gui::DynamicDisplayInfo*& outInfo);
 
