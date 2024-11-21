@@ -441,6 +441,8 @@ public:
 
     std::pair<Fps, Fps> getFrameRateCategoryRates() const { return kFrameRateCategoryRates; }
 
+    std::vector<float> getSupportedFrameRates() const EXCLUDES(mLock);
+
 private:
     friend struct TestableRefreshRateSelector;
 
