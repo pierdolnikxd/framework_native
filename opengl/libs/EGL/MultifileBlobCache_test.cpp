@@ -318,7 +318,7 @@ std::vector<std::string> MultifileBlobCacheTest::getCacheEntries() {
 
     struct stat info;
     if (stat(multifileDirName.c_str(), &info) == 0) {
-        // We have a multifile dir. Skip the status file and return the only entry.
+        // We have a multifile dir. Skip the status file and return the entries.
         DIR* dir;
         struct dirent* entry;
         if ((dir = opendir(multifileDirName.c_str())) != nullptr) {
@@ -329,6 +329,7 @@ std::vector<std::string> MultifileBlobCacheTest::getCacheEntries() {
                 if (strcmp(entry->d_name, kMultifileBlobCacheStatusFile) == 0) {
                     continue;
                 }
+                // printf("Found entry: %s\n", entry->d_name);
                 cacheEntries.push_back(multifileDirName + "/" + entry->d_name);
             }
         } else {
@@ -604,6 +605,125 @@ TEST_F(MultifileBlobCacheTest, SameKeyLargeValues) {
     for (int i = 0; i < kLargeValueSize; i++) {
         // Buffer should contain highest index value
         ASSERT_EQ(kLargeValueCount - 1, outBuf[i]);
+    }
+}
+
+// Ensure cache eviction is LRU
+TEST_F(MultifileBlobCacheTest, CacheEvictionIsLRU) {
+    if (!flags::multifile_blobcache_advanced_usage()) {
+        GTEST_SKIP() << "Skipping test that requires multifile_blobcache_advanced_usage flag";
+    }
+
+    // Fill the cache with exactly how much it can hold
+    int entry = 0;
+    for (entry = 0; entry < kMaxTotalEntries; entry++) {
+        // Use the index as the key and value
+        mMBC->set(&entry, sizeof(entry), &entry, sizeof(entry));
+
+        int result = 0;
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+
+    // Ensure the cache is full
+    ASSERT_EQ(mMBC->getTotalEntries(), kMaxTotalEntries);
+
+    // Add one more entry to trigger eviction
+    size_t overflowEntry = kMaxTotalEntries;
+    mMBC->set(&overflowEntry, sizeof(overflowEntry), &overflowEntry, sizeof(overflowEntry));
+
+    // Verify it contains the right amount, which will be one more than reduced size
+    // because we evict the cache before adding a new entry
+    size_t evictionLimit = kMaxTotalEntries / mMBC->getTotalCacheSizeDivisor();
+    ASSERT_EQ(mMBC->getTotalEntries(), evictionLimit + 1);
+
+    // Ensure cache is as expected, with old entries removed, newer entries remaining
+    for (entry = 0; entry < kMaxTotalEntries; entry++) {
+        int result = 0;
+        mMBC->get(&entry, sizeof(entry), &result, sizeof(result));
+
+        if (entry < evictionLimit) {
+            // We should get no hits on evicted entries, i.e. the first added
+            ASSERT_EQ(result, 0);
+        } else {
+            // Above the limit should still be present
+            ASSERT_EQ(result, entry);
+        }
+    }
+}
+
+// Ensure calling GET on an entry updates its access time, even if already in hotcache
+TEST_F(MultifileBlobCacheTest, GetUpdatesAccessTime) {
+    if (!flags::multifile_blobcache_advanced_usage()) {
+        GTEST_SKIP() << "Skipping test that requires multifile_blobcache_advanced_usage flag";
+    }
+
+    // Fill the cache with exactly how much it can hold
+    int entry = 0;
+    int result = 0;
+    for (entry = 0; entry < kMaxTotalEntries; entry++) {
+        // Use the index as the key and value
+        mMBC->set(&entry, sizeof(entry), &entry, sizeof(entry));
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+
+    // Ensure the cache is full
+    ASSERT_EQ(mMBC->getTotalEntries(), kMaxTotalEntries);
+
+    // GET the first few entries to update their access time
+    std::vector<int> accessedEntries = {1, 2, 3};
+    for (int i = 0; i < accessedEntries.size(); i++) {
+        entry = accessedEntries[i];
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+    }
+
+    // Add one more entry to trigger eviction
+    size_t overflowEntry = kMaxTotalEntries;
+    mMBC->set(&overflowEntry, sizeof(overflowEntry), &overflowEntry, sizeof(overflowEntry));
+
+    size_t evictionLimit = kMaxTotalEntries / mMBC->getTotalCacheSizeDivisor();
+
+    // Ensure cache is as expected, with old entries removed, newer entries remaining
+    for (entry = 0; entry < kMaxTotalEntries; entry++) {
+        int result = 0;
+        mMBC->get(&entry, sizeof(entry), &result, sizeof(result));
+
+        if (std::find(accessedEntries.begin(), accessedEntries.end(), entry) !=
+            accessedEntries.end()) {
+            // If this is one of the handful we accessed after filling the cache,
+            // they should still be in the cache because LRU
+            ASSERT_EQ(result, entry);
+        } else if (entry >= (evictionLimit + accessedEntries.size())) {
+            // If they were above the eviction limit (plus three for our updated entries),
+            // they should still be present
+            ASSERT_EQ(result, entry);
+        } else {
+            // Otherwise, they shold be evicted and no longer present
+            ASSERT_EQ(result, 0);
+        }
+    }
+
+    // Close the cache so everything writes out
+    mMBC->finish();
+    mMBC.reset();
+
+    // Open the cache again
+    mMBC.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, kMaxTotalEntries,
+                                      &mTempFile->path[0]));
+
+    // Check the cache again, ensuring the updated access time made it to disk
+    for (entry = 0; entry < kMaxTotalEntries; entry++) {
+        int result = 0;
+        mMBC->get(&entry, sizeof(entry), &result, sizeof(result));
+        if (std::find(accessedEntries.begin(), accessedEntries.end(), entry) !=
+            accessedEntries.end()) {
+            ASSERT_EQ(result, entry);
+        } else if (entry >= (evictionLimit + accessedEntries.size())) {
+            ASSERT_EQ(result, entry);
+        } else {
+            ASSERT_EQ(result, 0);
+        }
     }
 }
 
