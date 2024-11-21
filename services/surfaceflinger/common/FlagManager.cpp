@@ -113,6 +113,7 @@ void FlagManager::dump(std::string& result) const {
     /// Trunk stable server flags ///
     DUMP_SERVER_FLAG(refresh_rate_overlay_on_external_display);
     DUMP_SERVER_FLAG(adpf_gpu_sf);
+    DUMP_SERVER_FLAG(adpf_native_session_manager);
     DUMP_SERVER_FLAG(adpf_use_fmq_channel);
 
     /// Trunk stable readonly flags ///
@@ -274,6 +275,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(begone_bright_hlg, "debug.sf.begone_bright_hlg");
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")
 FLAG_MANAGER_SERVER_FLAG(adpf_gpu_sf, "")
+FLAG_MANAGER_SERVER_FLAG(adpf_native_session_manager, "");
 
 /// Trunk stable server flags from outside SurfaceFlinger ///
 FLAG_MANAGER_SERVER_FLAG_IMPORTED(adpf_use_fmq_channel, "", android::os)

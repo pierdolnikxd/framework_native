@@ -2268,6 +2268,19 @@ void SurfaceFlinger::onComposerHalHotplugEvent(hal::HWDisplayId hwcDisplayId,
         return;
     }
 
+    if (event < DisplayHotplugEvent::ERROR_LINK_UNSTABLE) {
+        // This needs to be kept in sync with DisplayHotplugEvent to prevent passing new errors.
+        const auto errorCode = static_cast<int32_t>(event);
+        ALOGW("%s: Unknown hotplug error %d for hwcDisplayId %" PRIu64, __func__, errorCode,
+              hwcDisplayId);
+        return;
+    }
+
+    if (event == DisplayHotplugEvent::ERROR_LINK_UNSTABLE &&
+        !FlagManager::getInstance().display_config_error_hal()) {
+        return;
+    }
+
     // TODO(b/311403559): use enum type instead of int
     const auto errorCode = static_cast<int32_t>(event);
     ALOGD("%s: Hotplug error %d for hwcDisplayId %" PRIu64, __func__, errorCode, hwcDisplayId);
