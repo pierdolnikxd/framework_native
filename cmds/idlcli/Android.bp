@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,6 @@ cc_library {
         "vibrator/CommandAlwaysOnEnable.cpp",
         "vibrator/CommandCompose.cpp",
         "vibrator/CommandComposePwle.cpp",
-        "vibrator/CommandGetFrequencyToOutputAccelerationMap.cpp",
         "vibrator/CommandGetBandwidthAmplitudeMap.cpp",
         "vibrator/CommandGetCapabilities.cpp",
         "vibrator/CommandGetCompositionDelayMax.cpp",
@@ -73,11 +72,6 @@ cc_library {
         "vibrator/CommandSetExternalControl.cpp",
         "vibrator/CommandSupportsAmplitudeControl.cpp",
         "vibrator/CommandSupportsExternalControl.cpp",
-        "vibrator/CommandGetPwleV2PrimitiveDurationMaxMillis.cpp",
-        "vibrator/CommandGetPwleV2CompositionSizeMax.cpp",
-        "vibrator/CommandGetPwleV2PrimitiveDurationMinMillis.cpp",
-        "vibrator/CommandComposePwleV2.cpp",
-        "vibrator/CommandPerformVendorEffect.cpp",
     ],
     visibility: [":__subpackages__"],
 }
