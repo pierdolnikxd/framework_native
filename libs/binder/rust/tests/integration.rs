@@ -384,8 +384,8 @@ mod tests {
     use std::time::Duration;
 
     use binder::{
-        Accessor, BinderFeatures, DeathRecipient, FromIBinder, IBinder, Interface, SpIBinder,
-        StatusCode, Strong,
+        Accessor, AccessorProvider, BinderFeatures, DeathRecipient, FromIBinder, IBinder,
+        Interface, SpIBinder, StatusCode, Strong,
     };
     // Import from impl API for testing only, should not be necessary as long as
     // you are using AIDL.
@@ -980,6 +980,62 @@ mod tests {
         let delegator_binder =
             binder::delegate_accessor("NOT.foo.service", accessor.as_binder().unwrap());
         assert_eq!(delegator_binder, Err(StatusCode::NAME_NOT_FOUND));
+    }
+
+    #[test]
+    fn test_accessor_provider_simple() {
+        let instances: Vec<String> = vec!["foo.service".to_owned(), "foo.other_service".to_owned()];
+        let accessor = AccessorProvider::new(&instances, move |_inst: &str| None);
+        assert!(accessor.is_some());
+    }
+
+    #[test]
+    fn test_accessor_provider_no_instance() {
+        let instances: Vec<String> = vec![];
+        let accessor = AccessorProvider::new(&instances, move |_inst: &str| None);
+        assert!(accessor.is_none());
+    }
+
+    #[test]
+    fn test_accessor_provider_double_register() {
+        let instances: Vec<String> = vec!["foo.service".to_owned(), "foo.other_service".to_owned()];
+        let accessor = AccessorProvider::new(&instances, move |_inst: &str| None);
+        assert!(accessor.is_some());
+        let accessor2 = AccessorProvider::new(&instances, move |_inst: &str| None);
+        assert!(accessor2.is_none());
+    }
+
+    #[test]
+    fn test_accessor_provider_register_drop_register() {
+        let instances: Vec<String> = vec!["foo.service".to_owned(), "foo.other_service".to_owned()];
+        {
+            let accessor = AccessorProvider::new(&instances, move |_inst: &str| None);
+            assert!(accessor.is_some());
+            // accessor drops and unregisters the provider
+        }
+        {
+            let accessor = AccessorProvider::new(&instances, move |_inst: &str| None);
+            assert!(accessor.is_some());
+        }
+    }
+
+    #[test]
+    fn test_accessor_provider_callback_destruction() {
+        let deleted: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        let instances: Vec<String> = vec!["foo.service".to_owned(), "foo.other_service".to_owned()];
+        {
+            let accessor: Option<AccessorProvider>;
+            {
+                let helper = ToBeDeleted { deleted: deleted.clone() };
+                accessor = AccessorProvider::new(&instances, move |_inst: &str| {
+                    let _ = &helper;
+                    None
+                });
+            }
+            assert!(accessor.is_some());
+            assert!(!deleted.load(Ordering::Relaxed));
+        }
+        assert!(deleted.load(Ordering::Relaxed));
     }
 
     #[tokio::test]
