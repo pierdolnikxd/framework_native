@@ -115,6 +115,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_ACONFIG_FLAG(adpf_gpu_sf);
     DUMP_ACONFIG_FLAG(adpf_native_session_manager);
     DUMP_ACONFIG_FLAG(adpf_use_fmq_channel);
+    DUMP_ACONFIG_FLAG(graphite_renderengine_preview_rollout);
 
     /// Trunk stable readonly flags ///
     DUMP_ACONFIG_FLAG(adpf_fmq_sf);
@@ -265,6 +266,7 @@ FLAG_MANAGER_ACONFIG_FLAG(begone_bright_hlg, "debug.sf.begone_bright_hlg");
 FLAG_MANAGER_ACONFIG_FLAG(refresh_rate_overlay_on_external_display, "")
 FLAG_MANAGER_ACONFIG_FLAG(adpf_gpu_sf, "")
 FLAG_MANAGER_ACONFIG_FLAG(adpf_native_session_manager, "");
+FLAG_MANAGER_ACONFIG_FLAG(graphite_renderengine_preview_rollout, "");
 
 /// Trunk stable server (R/W) flags from outside SurfaceFlinger ///
 FLAG_MANAGER_ACONFIG_FLAG_IMPORTED(adpf_use_fmq_channel, "", android::os)

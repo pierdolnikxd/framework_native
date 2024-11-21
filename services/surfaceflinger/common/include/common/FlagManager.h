@@ -53,6 +53,7 @@ public:
     bool adpf_use_fmq_channel() const;
     bool adpf_native_session_manager() const;
     bool adpf_use_fmq_channel_fixed() const;
+    bool graphite_renderengine_preview_rollout() const;
 
     /// Trunk stable readonly flags ///
     bool adpf_fmq_sf() const;
