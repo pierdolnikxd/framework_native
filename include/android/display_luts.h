@@ -35,6 +35,7 @@ enum ADisplayLuts_Dimension : int32_t {
     ADISPLAYLUTS_ONE_DIMENSION = 1,
     ADISPLAYLUTS_THREE_DIMENSION = 3,
 };
+typedef enum ADisplayLuts_Dimension ADisplayLuts_Dimension;
 
 /**
  * The sampling key used by the lut
@@ -43,6 +44,7 @@ enum ADisplayLuts_SamplingKey : int32_t {
     ADISPLAYLUTS_SAMPLINGKEY_RGB = 0,
     ADISPLAYLUTS_SAMPLINGKEY_MAX_RGB = 1,
 };
+typedef enum ADisplayLuts_SamplingKey ADisplayLuts_SamplingKey;
 
 /**
  * Used to get and set display luts entry
