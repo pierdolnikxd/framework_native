@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <stdio.h>
+#include <utils/JenkinsHash.h>
 
 #include <fstream>
 #include <memory>
@@ -853,6 +854,62 @@ TEST_F(MultifileBlobCacheTest, EvictAfterLostCache) {
     // We should have triggered multiple evictions above and remain at or below the
     // max amount of entries
     ASSERT_LE(getCacheEntries().size(), kMaxTotalEntries);
+}
+
+// Remove from cache when size is zero
+TEST_F(MultifileBlobCacheTest, ZeroSizeRemovesEntry) {
+    if (!flags::multifile_blobcache_advanced_usage()) {
+        GTEST_SKIP() << "Skipping test that requires multifile_blobcache_advanced_usage flag";
+    }
+
+    // Put some entries in
+    int entry = 0;
+    int result = 0;
+
+    uint32_t kEntryCount = 20;
+
+    // Add some entries
+    for (entry = 0; entry < kEntryCount; entry++) {
+        mMBC->set(&entry, sizeof(entry), &entry, sizeof(entry));
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+
+    // Send some of them again with size zero
+    std::vector<int> removedEntries = {5, 10, 18};
+    for (int i = 0; i < removedEntries.size(); i++) {
+        entry = removedEntries[i];
+        mMBC->set(&entry, sizeof(entry), nullptr, 0);
+    }
+
+    // Ensure they do not get a hit
+    for (int i = 0; i < removedEntries.size(); i++) {
+        entry = removedEntries[i];
+        ASSERT_EQ(size_t(0), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+    }
+
+    // And have been removed from disk
+    std::vector<std::string> diskEntries = getCacheEntries();
+    ASSERT_EQ(diskEntries.size(), kEntryCount - removedEntries.size());
+    for (int i = 0; i < removedEntries.size(); i++) {
+        entry = removedEntries[i];
+        // Generate a hash for our removed entries and ensure they are not contained
+        // Note our entry and key and the same here, so we're hashing the key just like
+        // the multifile blobcache does.
+        uint32_t entryHash =
+                android::JenkinsHashMixBytes(0, reinterpret_cast<uint8_t*>(&entry), sizeof(entry));
+        ASSERT_EQ(std::find(diskEntries.begin(), diskEntries.end(), std::to_string(entryHash)),
+                  diskEntries.end());
+    }
+
+    // Ensure the others are still present
+    for (entry = 0; entry < kEntryCount; entry++) {
+        if (std::find(removedEntries.begin(), removedEntries.end(), entry) ==
+            removedEntries.end()) {
+            ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+            ASSERT_EQ(result, entry);
+        }
+    }
 }
 
 } // namespace android

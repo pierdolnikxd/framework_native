@@ -330,6 +330,8 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
     // Generate a hash of the key and use it to track this entry
     uint32_t entryHash = android::JenkinsHashMixBytes(0, static_cast<const uint8_t*>(key), keySize);
 
+    std::string fullPath = mMultifileDirName + "/" + std::to_string(entryHash);
+
     // See if we already have this file
     if (flags::multifile_blobcache_advanced_usage() && contains(entryHash)) {
         // Remove previous entry from hot cache
@@ -337,6 +339,17 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
 
         // Remove previous entry and update the overall cache size
         removeEntry(entryHash);
+
+        // If valueSize is zero, this is an indication that the user wants to remove the entry from
+        // cache It has already been removed from tracking, now remove it from disk It is safe to do
+        // this immediately because we drained the write queue in removeFromHotCache
+        if (valueSize == 0) {
+            ALOGV("SET: Zero size detected for existing entry, removing %u from cache", entryHash);
+            if (remove(fullPath.c_str()) != 0) {
+                ALOGW("SET: Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+            }
+            return;
+        }
     }
 
     size_t fileSize = sizeof(MultifileHeader) + keySize + valueSize;
@@ -360,8 +373,6 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
            keySize);
     memcpy(static_cast<void*>(buffer + sizeof(MultifileHeader) + keySize),
            static_cast<const void*>(value), valueSize);
-
-    std::string fullPath = mMultifileDirName + "/" + std::to_string(entryHash);
 
     // Track the size and access time for quick recall and update the overall cache size
     struct timespec time = {0, 0};
