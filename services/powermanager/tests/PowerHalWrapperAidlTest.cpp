@@ -66,9 +66,9 @@ public:
     MOCK_METHOD(ndk::SpAIBinder, asBinder, (), (override));
     MOCK_METHOD(bool, isRemote, (), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getCpuHeadroom,
-                (const CpuHeadroomParams& params, std::vector<float>* headroom), (override));
+                (const CpuHeadroomParams& params, CpuHeadroomResult* headroom), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getGpuHeadroom,
-                (const GpuHeadroomParams& params, float* headroom), (override));
+                (const GpuHeadroomParams& params, GpuHeadroomResult* headroom), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getCpuHeadroomMinIntervalMillis, (int64_t* interval),
                 (override));
     MOCK_METHOD(ndk::ScopedAStatus, getGpuHeadroomMinIntervalMillis, (int64_t* interval),
