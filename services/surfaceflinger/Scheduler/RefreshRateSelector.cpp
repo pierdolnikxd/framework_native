@@ -1557,6 +1557,19 @@ Fps RefreshRateSelector::findClosestKnownFrameRate(Fps frameRate) const {
     return distance1 < distance2 ? *lowerBound : *std::prev(lowerBound);
 }
 
+std::vector<float> RefreshRateSelector::getSupportedFrameRates() const {
+    std::scoped_lock lock(mLock);
+    // TODO(b/356986687) Remove the limit once we have the anchor list implementation.
+    const size_t frameRatesSize = std::min<size_t>(11, mPrimaryFrameRates.size());
+    std::vector<float> supportedFrameRates;
+    supportedFrameRates.reserve(frameRatesSize);
+    std::transform(mPrimaryFrameRates.rbegin(),
+                   mPrimaryFrameRates.rbegin() + static_cast<int>(frameRatesSize),
+                   std::back_inserter(supportedFrameRates),
+                   [](FrameRateMode mode) { return mode.fps.getValue(); });
+    return supportedFrameRates;
+}
+
 auto RefreshRateSelector::getIdleTimerAction() const -> KernelIdleTimerAction {
     std::lock_guard lock(mLock);
 

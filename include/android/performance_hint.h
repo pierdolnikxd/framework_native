@@ -518,7 +518,7 @@ int ASessionCreationConfig_setPreferPowerEfficiency(
                   pipeline is reached.
  */
 int ASessionCreationConfig_setGraphicsPipeline(
-        ASessionCreationConfig* _Nonnull confi, bool enabled)  __INTRODUCED_IN(36);
+        ASessionCreationConfig* _Nonnull config, bool enabled)  __INTRODUCED_IN(36);
 
 __END_DECLS
 
