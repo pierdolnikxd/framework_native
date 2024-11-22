@@ -47,7 +47,7 @@ public:
     bool use_adpf_cpu_hint() const;
     bool use_skia_tracing() const;
 
-    /// Trunk stable server flags ///
+    /// Trunk stable server (R/W) flags ///
     bool refresh_rate_overlay_on_external_display() const;
     bool adpf_gpu_sf() const;
     bool adpf_use_fmq_channel() const;
