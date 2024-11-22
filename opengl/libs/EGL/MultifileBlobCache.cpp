@@ -137,7 +137,7 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
     // Check that our cacheVersion and buildId match
     struct stat st;
     if (stat(mMultifileDirName.c_str(), &st) == 0) {
-        if (checkStatus(mMultifileDirName.c_str())) {
+        if (checkStatus(mMultifileDirName)) {
             statusGood = true;
         } else {
             ALOGV("INIT: Cache status has changed, clearing the cache");
@@ -851,8 +851,8 @@ bool MultifileBlobCache::applyLRU(size_t cacheSizeLimit, size_t cacheEntryLimit)
         // Remove it from the system
         std::string entryPath = mMultifileDirName + "/" + std::to_string(entryHash);
         if (remove(entryPath.c_str()) != 0) {
-            ALOGE("LRU: Error removing %s: %s", entryPath.c_str(), std::strerror(errno));
-            return false;
+            // Continue evicting invalid item (app's cache might be cleared)
+            ALOGW("LRU: Error removing %s: %s", entryPath.c_str(), std::strerror(errno));
         }
 
         // Increment the iterator before clearing the entry
@@ -945,9 +945,36 @@ void MultifileBlobCache::processTask(DeferredTask& task) {
             // Create the file or reset it if already present, read+write for user only
             int fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
             if (fd == -1) {
-                ALOGE("Cache error in SET - failed to open fullPath: %s, error: %s",
-                      fullPath.c_str(), std::strerror(errno));
-                return;
+                if (flags::multifile_blobcache_advanced_usage()) {
+                    struct stat st;
+                    if (stat(mMultifileDirName.c_str(), &st) == -1) {
+                        ALOGW("Cache directory missing (app's cache cleared?). Recreating...");
+
+                        // Restore the multifile directory
+                        if (mkdir(mMultifileDirName.c_str(), 0755) != 0 && (errno != EEXIST)) {
+                            ALOGE("Cache error in SET - Unable to create directory (%s), errno "
+                                  "(%i)",
+                                  mMultifileDirName.c_str(), errno);
+                            return;
+                        }
+
+                        // Create new status file
+                        if (!createStatus(mMultifileDirName.c_str())) {
+                            ALOGE("Cache error in SET - Failed to create status file!");
+                            return;
+                        }
+
+                        // Try to open the file again
+                        fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC,
+                                  S_IRUSR | S_IWUSR);
+                    }
+                }
+
+                if (fd == -1) {
+                    ALOGE("Cache error in SET - failed to open fullPath: %s, error: %s",
+                          fullPath.c_str(), std::strerror(errno));
+                    return;
+                }
             }
 
             ALOGV("DEFERRED: Opened fd %i from %s", fd, fullPath.c_str());

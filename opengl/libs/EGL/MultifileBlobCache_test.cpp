@@ -59,6 +59,7 @@ protected:
     std::vector<std::string> getCacheEntries();
 
     void clearProperties();
+    bool clearCache();
 
     std::unique_ptr<TemporaryFile> mTempFile;
     std::unique_ptr<MultifileBlobCache> mMBC;
@@ -725,6 +726,133 @@ TEST_F(MultifileBlobCacheTest, GetUpdatesAccessTime) {
             ASSERT_EQ(result, 0);
         }
     }
+}
+
+bool MultifileBlobCacheTest::clearCache() {
+    std::string cachePath = &mTempFile->path[0];
+    std::string multifileDirName = cachePath + ".multifile";
+
+    DIR* dir = opendir(multifileDirName.c_str());
+    if (dir == nullptr) {
+        printf("Error opening directory: %s\n", multifileDirName.c_str());
+        return false;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        // Skip "." and ".." entries
+        if (std::string(entry->d_name) == "." || std::string(entry->d_name) == "..") {
+            continue;
+        }
+
+        std::string entryPath = multifileDirName + "/" + entry->d_name;
+
+        // Delete the entry (we assert it's a file, nothing nested here)
+        if (unlink(entryPath.c_str()) != 0) {
+            printf("Error deleting file: %s\n", entryPath.c_str());
+            closedir(dir);
+            return false;
+        }
+    }
+
+    closedir(dir);
+
+    // Delete the empty directory itself
+    if (rmdir(multifileDirName.c_str()) != 0) {
+        printf("Error deleting directory %s, error %s\n", multifileDirName.c_str(),
+               std::strerror(errno));
+        return false;
+    }
+
+    return true;
+}
+
+// Recover from lost cache in the case of app clearing it
+TEST_F(MultifileBlobCacheTest, RecoverFromLostCache) {
+    if (!flags::multifile_blobcache_advanced_usage()) {
+        GTEST_SKIP() << "Skipping test that requires multifile_blobcache_advanced_usage flag";
+    }
+
+    int entry = 0;
+    int result = 0;
+
+    uint32_t kEntryCount = 10;
+
+    // Add some entries
+    for (entry = 0; entry < kEntryCount; entry++) {
+        mMBC->set(&entry, sizeof(entry), &entry, sizeof(entry));
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+
+    // For testing, wait until the entries have completed writing
+    mMBC->finish();
+
+    // Manually delete the cache!
+    ASSERT_TRUE(clearCache());
+
+    // Cache should not contain any entries
+    for (entry = 0; entry < kEntryCount; entry++) {
+        ASSERT_EQ(size_t(0), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+    }
+
+    // Ensure we can still add new ones
+    for (entry = kEntryCount; entry < kEntryCount * 2; entry++) {
+        mMBC->set(&entry, sizeof(entry), &entry, sizeof(entry));
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+
+    // Close the cache so everything writes out
+    mMBC->finish();
+    mMBC.reset();
+
+    // Open the cache again
+    mMBC.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, kMaxTotalEntries,
+                                      &mTempFile->path[0]));
+
+    // Before fixes, writing the second entries to disk should have failed due to missing
+    // cache dir.  But now they should have survived our shutdown above.
+    for (entry = kEntryCount; entry < kEntryCount * 2; entry++) {
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+}
+
+// Ensure cache eviction succeeds if the cache is deleted
+TEST_F(MultifileBlobCacheTest, EvictAfterLostCache) {
+    if (!flags::multifile_blobcache_advanced_usage()) {
+        GTEST_SKIP() << "Skipping test that requires multifile_blobcache_advanced_usage flag";
+    }
+
+    int entry = 0;
+    int result = 0;
+
+    uint32_t kEntryCount = 10;
+
+    // Add some entries
+    for (entry = 0; entry < kEntryCount; entry++) {
+        mMBC->set(&entry, sizeof(entry), &entry, sizeof(entry));
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+
+    // For testing, wait until the entries have completed writing
+    mMBC->finish();
+
+    // Manually delete the cache!
+    ASSERT_TRUE(clearCache());
+
+    // Now start adding entries to trigger eviction, cache should survive
+    for (entry = kEntryCount; entry < 2 * kMaxTotalEntries; entry++) {
+        mMBC->set(&entry, sizeof(entry), &entry, sizeof(entry));
+        ASSERT_EQ(sizeof(entry), mMBC->get(&entry, sizeof(entry), &result, sizeof(result)));
+        ASSERT_EQ(entry, result);
+    }
+
+    // We should have triggered multiple evictions above and remain at or below the
+    // max amount of entries
+    ASSERT_LE(getCacheEntries().size(), kMaxTotalEntries);
 }
 
 } // namespace android
