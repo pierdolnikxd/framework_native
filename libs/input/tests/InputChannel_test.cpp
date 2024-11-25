@@ -78,9 +78,10 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
     EXPECT_EQ(OK, serverChannel->sendMessage(&serverMsg))
             << "server channel should be able to send message to client channel";
 
-    InputMessage clientMsg;
-    EXPECT_EQ(OK, clientChannel->receiveMessage(&clientMsg))
+    android::base::Result<InputMessage> clientMsgResult = clientChannel->receiveMessage();
+    ASSERT_TRUE(clientMsgResult.ok())
             << "client channel should be able to receive message from server channel";
+    const InputMessage& clientMsg = *clientMsgResult;
     EXPECT_EQ(serverMsg.header.type, clientMsg.header.type)
             << "client channel should receive the correct message from server channel";
     EXPECT_EQ(serverMsg.body.key.action, clientMsg.body.key.action)
@@ -94,9 +95,10 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
     EXPECT_EQ(OK, clientChannel->sendMessage(&clientReply))
             << "client channel should be able to send message to server channel";
 
-    InputMessage serverReply;
-    EXPECT_EQ(OK, serverChannel->receiveMessage(&serverReply))
+    android::base::Result<InputMessage> serverReplyResult = serverChannel->receiveMessage();
+    ASSERT_TRUE(serverReplyResult.ok())
             << "server channel should be able to receive message from client channel";
+    const InputMessage& serverReply = *serverReplyResult;
     EXPECT_EQ(clientReply.header.type, serverReply.header.type)
             << "server channel should receive the correct message from client channel";
     EXPECT_EQ(clientReply.header.seq, serverReply.header.seq)
@@ -134,9 +136,10 @@ TEST_F(InputChannelTest, ProbablyHasInput) {
             << "client channel should observe that message is available before receiving it";
 
     // Receive (consume) the message.
-    InputMessage clientMsg;
-    EXPECT_EQ(OK, receiverChannel->receiveMessage(&clientMsg))
+    android::base::Result<InputMessage> clientMsgResult = receiverChannel->receiveMessage();
+    ASSERT_TRUE(clientMsgResult.ok())
             << "client channel should be able to receive message from server channel";
+    const InputMessage& clientMsg = *clientMsgResult;
     EXPECT_EQ(serverMsg.header.type, clientMsg.header.type)
             << "client channel should receive the correct message from server channel";
     EXPECT_EQ(serverMsg.body.key.action, clientMsg.body.key.action)
@@ -156,8 +159,8 @@ TEST_F(InputChannelTest, ReceiveSignal_WhenNoSignalPresent_ReturnsAnError) {
     ASSERT_EQ(OK, result)
             << "should have successfully opened a channel pair";
 
-    InputMessage msg;
-    EXPECT_EQ(WOULD_BLOCK, clientChannel->receiveMessage(&msg))
+    android::base::Result<InputMessage> msgResult = clientChannel->receiveMessage();
+    EXPECT_EQ(WOULD_BLOCK, msgResult.error().code())
             << "receiveMessage should have returned WOULD_BLOCK";
 }
 
@@ -172,8 +175,8 @@ TEST_F(InputChannelTest, ReceiveSignal_WhenPeerClosed_ReturnsAnError) {
 
     serverChannel.reset(); // close server channel
 
-    InputMessage msg;
-    EXPECT_EQ(DEAD_OBJECT, clientChannel->receiveMessage(&msg))
+    android::base::Result<InputMessage> msgResult = clientChannel->receiveMessage();
+    EXPECT_EQ(DEAD_OBJECT, msgResult.error().code())
             << "receiveMessage should have returned DEAD_OBJECT";
 }
 
@@ -207,7 +210,7 @@ TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
         MotionClassification::DEEP_PRESS,
     };
 
-    InputMessage serverMsg = {}, clientMsg;
+    InputMessage serverMsg = {};
     serverMsg.header.type = InputMessage::Type::MOTION;
     serverMsg.header.seq = 1;
     serverMsg.body.motion.pointerCount = 1;
@@ -218,11 +221,13 @@ TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
         EXPECT_EQ(OK, serverChannel->sendMessage(&serverMsg))
                 << "server channel should be able to send message to client channel";
 
-        EXPECT_EQ(OK, clientChannel->receiveMessage(&clientMsg))
+        android::base::Result<InputMessage> clientMsgResult = clientChannel->receiveMessage();
+        ASSERT_TRUE(clientMsgResult.ok())
                 << "client channel should be able to receive message from server channel";
+        const InputMessage& clientMsg = *clientMsgResult;
         EXPECT_EQ(serverMsg.header.type, clientMsg.header.type);
-        EXPECT_EQ(classification, clientMsg.body.motion.classification) <<
-                "Expected to receive " << motionClassificationToString(classification);
+        EXPECT_EQ(classification, clientMsg.body.motion.classification)
+                << "Expected to receive " << motionClassificationToString(classification);
     }
 }
 

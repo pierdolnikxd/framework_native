@@ -362,36 +362,36 @@ void InputConsumerNoResampling::handleMessages(std::vector<InputMessage>&& messa
 std::vector<InputMessage> InputConsumerNoResampling::readAllMessages() {
     std::vector<InputMessage> messages;
     while (true) {
-        InputMessage msg;
-        status_t result = mChannel->receiveMessage(&msg);
-        switch (result) {
-            case OK: {
-                const auto [_, inserted] =
-                        mConsumeTimes.emplace(msg.header.seq, systemTime(SYSTEM_TIME_MONOTONIC));
-                LOG_ALWAYS_FATAL_IF(!inserted, "Already have a consume time for seq=%" PRIu32,
-                                    msg.header.seq);
+        android::base::Result<InputMessage> result = mChannel->receiveMessage();
+        if (result.ok()) {
+            const InputMessage& msg = *result;
+            const auto [_, inserted] =
+                    mConsumeTimes.emplace(msg.header.seq, systemTime(SYSTEM_TIME_MONOTONIC));
+            LOG_ALWAYS_FATAL_IF(!inserted, "Already have a consume time for seq=%" PRIu32,
+                                msg.header.seq);
 
-                // Trace the event processing timeline - event was just read from the socket
-                // TODO(b/329777420): distinguish between multiple instances of InputConsumer
-                // in the same process.
-                ATRACE_ASYNC_BEGIN("InputConsumer processing", /*cookie=*/msg.header.seq);
-                messages.push_back(msg);
-                break;
-            }
-            case WOULD_BLOCK: {
-                return messages;
-            }
-            case DEAD_OBJECT: {
-                LOG(FATAL) << "Got a dead object for " << mChannel->getName();
-                break;
-            }
-            case BAD_VALUE: {
-                LOG(FATAL) << "Got a bad value for " << mChannel->getName();
-                break;
-            }
-            default: {
-                LOG(FATAL) << "Unexpected error: " << result;
-                break;
+            // Trace the event processing timeline - event was just read from the socket
+            // TODO(b/329777420): distinguish between multiple instances of InputConsumer
+            // in the same process.
+            ATRACE_ASYNC_BEGIN("InputConsumer processing", /*cookie=*/msg.header.seq);
+            messages.push_back(msg);
+        } else { // !result.ok()
+            switch (result.error().code()) {
+                case WOULD_BLOCK: {
+                    return messages;
+                }
+                case DEAD_OBJECT: {
+                    LOG(FATAL) << "Got a dead object for " << mChannel->getName();
+                    break;
+                }
+                case BAD_VALUE: {
+                    LOG(FATAL) << "Got a bad value for " << mChannel->getName();
+                    break;
+                }
+                default: {
+                    LOG(FATAL) << "Unexpected error: " << result.error().message();
+                    break;
+                }
             }
         }
     }
