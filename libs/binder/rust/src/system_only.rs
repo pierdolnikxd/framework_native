@@ -91,6 +91,32 @@ impl Accessor {
         Accessor { accessor }
     }
 
+    /// Creates a new Accessor instance based on an existing Accessor's binder.
+    /// This is useful when the Accessor instance is hosted in another process
+    /// that has the permissions to create the socket connection FD.
+    ///
+    /// The `instance` argument must match the instance that the original Accessor
+    /// is responsible for.
+    /// `instance` must not contain null bytes and is used to create a CString to
+    /// pass through FFI.
+    /// The `binder` argument must be a valid binder from an Accessor
+    pub fn from_binder(instance: &str, binder: SpIBinder) -> Option<Accessor> {
+        let inst = CString::new(instance).unwrap();
+
+        // Safety: All `SpIBinder` objects (the `binder` argument) hold a valid pointer
+        // to an `AIBinder` that is guaranteed to remain valid for the lifetime of the
+        // SpIBinder. `ABinderRpc_Accessor_fromBinder` creates a new pointer to that binder
+        // that it is responsible for.
+        // The `inst` argument is a new CString that will copied by
+        // `ABinderRpc_Accessor_fromBinder` and not modified.
+        let accessor =
+            unsafe { sys::ABinderRpc_Accessor_fromBinder(inst.as_ptr(), binder.as_raw()) };
+        if accessor.is_null() {
+            return None;
+        }
+        Some(Accessor { accessor })
+    }
+
     /// Get the underlying binder for this Accessor for when it needs to be either
     /// registered with service manager or sent to another process.
     pub fn as_binder(&self) -> Option<SpIBinder> {
