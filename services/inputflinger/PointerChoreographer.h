@@ -145,6 +145,8 @@ private:
     void processDrawingTabletEventLocked(const NotifyMotionArgs& args) REQUIRES(getLock());
     void processTouchscreenAndStylusEventLocked(const NotifyMotionArgs& args) REQUIRES(getLock());
     void processStylusHoverEventLocked(const NotifyMotionArgs& args) REQUIRES(getLock());
+    void processPointerDeviceMotionEventLocked(NotifyMotionArgs& newArgs,
+                                               PointerControllerInterface& pc) REQUIRES(getLock());
     void processDeviceReset(const NotifyDeviceResetArgs& args);
     void onControllerAddedOrRemovedLocked() REQUIRES(getLock());
     void onPrivacySensitiveDisplaysChangedLocked(

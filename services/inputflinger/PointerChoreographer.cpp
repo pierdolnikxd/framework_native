@@ -243,14 +243,7 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
         pc.setPosition(args.xCursorPosition, args.yCursorPosition);
     } else {
         // This is a relative mouse, so move the cursor by the specified amount.
-        const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
-        const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
-        pc.move(deltaX, deltaY);
-        const auto [x, y] = pc.getPosition();
-        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
-        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
-        newArgs.xCursorPosition = x;
-        newArgs.yCursorPosition = y;
+        processPointerDeviceMotionEventLocked(/*byref*/ newArgs, /*byref*/ pc);
     }
     if (canUnfadeOnDisplay(displayId)) {
         pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
@@ -266,24 +259,9 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
     newArgs.displayId = displayId;
     if (args.getPointerCount() == 1 && args.classification == MotionClassification::NONE) {
         // This is a movement of the mouse pointer.
-        const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
-        const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
-        pc.move(deltaX, deltaY);
-        if (canUnfadeOnDisplay(displayId)) {
-            pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
-        }
-
-        const auto [x, y] = pc.getPosition();
-        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
-        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
-        newArgs.xCursorPosition = x;
-        newArgs.yCursorPosition = y;
+        processPointerDeviceMotionEventLocked(/*byref*/ newArgs, /*byref*/ pc);
     } else {
         // This is a trackpad gesture with fake finger(s) that should not move the mouse pointer.
-        if (canUnfadeOnDisplay(displayId)) {
-            pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
-        }
-
         const auto [x, y] = pc.getPosition();
         for (uint32_t i = 0; i < newArgs.getPointerCount(); i++) {
             newArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X,
@@ -294,7 +272,23 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
         newArgs.xCursorPosition = x;
         newArgs.yCursorPosition = y;
     }
+    if (canUnfadeOnDisplay(displayId)) {
+        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
     return newArgs;
+}
+
+void PointerChoreographer::processPointerDeviceMotionEventLocked(NotifyMotionArgs& newArgs,
+                                                                 PointerControllerInterface& pc) {
+    const float deltaX = newArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+    const float deltaY = newArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+
+    pc.move(deltaX, deltaY);
+    const auto [x, y] = pc.getPosition();
+    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
+    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+    newArgs.xCursorPosition = x;
+    newArgs.yCursorPosition = y;
 }
 
 void PointerChoreographer::processDrawingTabletEventLocked(const android::NotifyMotionArgs& args) {
