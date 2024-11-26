@@ -69,10 +69,6 @@ public:
                 (const CpuHeadroomParams& params, CpuHeadroomResult* headroom), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getGpuHeadroom,
                 (const GpuHeadroomParams& params, GpuHeadroomResult* headroom), (override));
-    MOCK_METHOD(ndk::ScopedAStatus, getCpuHeadroomMinIntervalMillis, (int64_t* interval),
-                (override));
-    MOCK_METHOD(ndk::ScopedAStatus, getGpuHeadroomMinIntervalMillis, (int64_t* interval),
-                (override));
     MOCK_METHOD(ndk::ScopedAStatus, sendCompositionData,
                 (const std::vector<CompositionData>& in_data), (override));
     MOCK_METHOD(ndk::ScopedAStatus, sendCompositionUpdate,
