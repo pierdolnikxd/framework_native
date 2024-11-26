@@ -24,20 +24,6 @@ namespace android {
 
 struct SpriteIcon;
 
-struct FloatPoint {
-    float x;
-    float y;
-
-    inline FloatPoint(float x, float y) : x(x), y(y) {}
-
-    inline explicit FloatPoint(vec2 p) : x(p.x), y(p.y) {}
-
-    template <typename T, typename U>
-    operator std::tuple<T, U>() {
-        return {x, y};
-    }
-};
-
 /**
  * Interface for tracking a mouse / touch pad pointer and touch pad spots.
  *
@@ -77,13 +63,13 @@ public:
      *
      * Return value may be used to move pointer to corresponding adjacent display, if it exists in
      * the display-topology */
-    [[nodiscard]] virtual FloatPoint move(float deltaX, float deltaY) = 0;
+    [[nodiscard]] virtual vec2 move(float deltaX, float deltaY) = 0;
 
     /* Sets the absolute location of the pointer. */
     virtual void setPosition(float x, float y) = 0;
 
     /* Gets the absolute location of the pointer. */
-    virtual FloatPoint getPosition() const = 0;
+    virtual vec2 getPosition() const = 0;
 
     enum class Transition {
         // Fade/unfade immediately.

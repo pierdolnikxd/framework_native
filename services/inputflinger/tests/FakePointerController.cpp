@@ -43,7 +43,7 @@ void FakePointerController::setPosition(float x, float y) {
     mY = y;
 }
 
-FloatPoint FakePointerController::getPosition() const {
+vec2 FakePointerController::getPosition() const {
     if (!mEnabled) {
         return {0, 0};
     }
@@ -96,9 +96,9 @@ void FakePointerController::assertViewportNotSet() {
 }
 
 void FakePointerController::assertPosition(float x, float y) {
-    const auto [actualX, actualY] = getPosition();
-    ASSERT_NEAR(x, actualX, 1);
-    ASSERT_NEAR(y, actualY, 1);
+    const auto actual = getPosition();
+    ASSERT_NEAR(x, actual.x, 1);
+    ASSERT_NEAR(y, actual.y, 1);
 }
 
 void FakePointerController::assertSpotCount(ui::LogicalDisplayId displayId, int32_t count) {
@@ -148,13 +148,13 @@ bool FakePointerController::isPointerShown() {
     return mIsPointerShown;
 }
 
-FloatPoint FakePointerController::move(float deltaX, float deltaY) {
+vec2 FakePointerController::move(float deltaX, float deltaY) {
     if (!mEnabled) return {0, 0};
 
     mX += deltaX;
     mY += deltaY;
 
-    const FloatPoint position(mX, mY);
+    const vec2 position(mX, mY);
 
     if (mX < mMinX) mX = mMinX;
     if (mX > mMaxX) mX = mMaxX;

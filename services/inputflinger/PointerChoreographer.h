@@ -59,7 +59,7 @@ public:
     virtual void setDisplayViewports(const std::vector<DisplayViewport>& viewports) = 0;
     virtual std::optional<DisplayViewport> getViewportForPointerDevice(
             ui::LogicalDisplayId associatedDisplayId = ui::LogicalDisplayId::INVALID) = 0;
-    virtual FloatPoint getMouseCursorPosition(ui::LogicalDisplayId displayId) = 0;
+    virtual vec2 getMouseCursorPosition(ui::LogicalDisplayId displayId) = 0;
     virtual void setShowTouchesEnabled(bool enabled) = 0;
     virtual void setStylusPointerIconEnabled(bool enabled) = 0;
     /**
@@ -96,7 +96,7 @@ public:
     void setDisplayViewports(const std::vector<DisplayViewport>& viewports) override;
     std::optional<DisplayViewport> getViewportForPointerDevice(
             ui::LogicalDisplayId associatedDisplayId) override;
-    FloatPoint getMouseCursorPosition(ui::LogicalDisplayId displayId) override;
+    vec2 getMouseCursorPosition(ui::LogicalDisplayId displayId) override;
     void setShowTouchesEnabled(bool enabled) override;
     void setStylusPointerIconEnabled(bool enabled) override;
     bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
@@ -134,8 +134,8 @@ public:
     void dump(std::string& dump) override;
 
 private:
-    using PointerDisplayChange = std::optional<
-            std::tuple<ui::LogicalDisplayId /*displayId*/, FloatPoint /*cursorPosition*/>>;
+    using PointerDisplayChange =
+            std::optional<std::tuple<ui::LogicalDisplayId /*displayId*/, vec2 /*cursorPosition*/>>;
 
     // PointerChoreographer's DisplayInfoListener can outlive the PointerChoreographer because when
     // the listener is registered and called from display thread, a strong pointer to the listener
@@ -171,8 +171,8 @@ private:
             const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays)
             REQUIRES(getLock());
 
-    void handleUnconsumedDeltaLocked(PointerControllerInterface& pc,
-                                     const FloatPoint& unconsumedDelta) REQUIRES(getLock());
+    void handleUnconsumedDeltaLocked(PointerControllerInterface& pc, const vec2& unconsumedDelta)
+            REQUIRES(getLock());
 
     void populateFakeDisplayTopologyLocked(const std::vector<gui::DisplayInfo>& displayInfos)
             REQUIRES(getLock());
