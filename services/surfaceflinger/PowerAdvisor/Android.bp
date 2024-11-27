@@ -19,9 +19,6 @@
 
 aidl_interface {
     name: "android.adpf.sessionmanager_aidl",
-    defaults: [
-        "android.hardware.power-aidl",
-    ],
     srcs: [
         "aidl/android/adpf/*.aidl",
     ],
@@ -39,10 +36,6 @@ aidl_interface {
             enabled: true,
         },
     },
-    imports: [
-        "android.hardware.common.fmq-V1",
-        "android.hardware.common-V2",
-    ],
 }
 
 cc_defaults {
