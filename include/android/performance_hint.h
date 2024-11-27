@@ -152,6 +152,9 @@ typedef struct ASessionCreationConfig ASessionCreationConfig;
  */
 typedef struct APerformanceHintSession APerformanceHintSession;
 
+typedef struct ANativeWindow ANativeWindow;
+typedef struct ASurfaceControl ASurfaceControl;
+
 /**
   * Acquire an instance of the performance hint manager.
   *
