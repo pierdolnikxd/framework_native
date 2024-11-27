@@ -60,7 +60,6 @@ using types::V1_2::PixelFormat;
 
 using V2_1::Config;
 using V2_1::Display;
-using V2_1::Error;
 using V2_1::Layer;
 using V2_4::CommandReaderBase;
 using V2_4::CommandWriterBase;
@@ -308,7 +307,7 @@ public:
     V2_4::Error getDisplayConnectionType(Display display,
                                          IComposerClient::DisplayConnectionType* outType) override;
     V2_4::Error getDisplayVsyncPeriod(Display display, VsyncPeriodNanos* outVsyncPeriod) override;
-    V2_4::Error setActiveConfigWithConstraints(
+    Error setActiveConfigWithConstraints(
             Display display, Config config,
             const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
             VsyncPeriodChangeTimeline* outTimeline) override;

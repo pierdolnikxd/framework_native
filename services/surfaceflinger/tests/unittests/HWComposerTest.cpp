@@ -69,7 +69,7 @@ using ::testing::SetArgPointee;
 using ::testing::StrictMock;
 
 struct HWComposerTest : testing::Test {
-    using HalError = hardware::graphics::composer::V2_1::Error;
+    using HalError = hal::Error;
 
     Hwc2::mock::Composer* const mHal = new StrictMock<Hwc2::mock::Composer>();
     impl::HWComposer mHwc{std::unique_ptr<Hwc2::Composer>(mHal)};
