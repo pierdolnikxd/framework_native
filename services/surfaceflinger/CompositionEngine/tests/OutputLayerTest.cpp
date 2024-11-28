@@ -901,7 +901,6 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         EXPECT_CALL(*mHwcLayer, setSurfaceDamage(RegionEq(surfaceDamage))).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setBlockingRegion(RegionEq(blockingRegion)))
                 .WillOnce(Return(kError));
-        EXPECT_CALL(*mHwcLayer, setLuts(_)).WillOnce(Return(kError));
     }
 
     void expectSetCompositionTypeCall(Composition compositionType) {

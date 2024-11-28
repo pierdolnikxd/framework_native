@@ -589,30 +589,28 @@ void OutputLayer::writeOutputIndependentGeometryStateToHWC(
 
 void OutputLayer::writeLutToHWC(HWC2::Layer* hwcLayer,
                                 const LayerFECompositionState& outputIndependentState) {
-    Luts luts;
-    // if outputIndependentState.luts is nullptr, it means we want to clear the LUTs
-    // and we pass an empty Luts object to the HWC.
-    if (outputIndependentState.luts) {
-        auto& lutFileDescriptor = outputIndependentState.luts->getLutFileDescriptor();
-        auto lutOffsets = outputIndependentState.luts->offsets;
-        auto& lutProperties = outputIndependentState.luts->lutProperties;
-
-        std::vector<LutProperties> aidlProperties;
-        aidlProperties.reserve(lutProperties.size());
-        for (size_t i = 0; i < lutOffsets.size(); i++) {
-            LutProperties properties;
-            properties.dimension = static_cast<LutProperties::Dimension>(lutProperties[i].dimension);
-            properties.size = lutProperties[i].size;
-            properties.samplingKeys = {
-                    static_cast<LutProperties::SamplingKey>(lutProperties[i].samplingKey)};
-            aidlProperties.emplace_back(properties);
-        }
-
-
-        luts.pfd = ndk::ScopedFileDescriptor(dup(lutFileDescriptor.get()));
-        luts.offsets = lutOffsets;
-        luts.lutProperties = std::move(aidlProperties);
+    if (!outputIndependentState.luts) {
+        return;
     }
+    auto& lutFileDescriptor = outputIndependentState.luts->getLutFileDescriptor();
+    auto lutOffsets = outputIndependentState.luts->offsets;
+    auto& lutProperties = outputIndependentState.luts->lutProperties;
+
+    std::vector<LutProperties> aidlProperties;
+    aidlProperties.reserve(lutProperties.size());
+    for (size_t i = 0; i < lutOffsets.size(); i++) {
+        LutProperties properties;
+        properties.dimension = static_cast<LutProperties::Dimension>(lutProperties[i].dimension);
+        properties.size = lutProperties[i].size;
+        properties.samplingKeys = {
+                static_cast<LutProperties::SamplingKey>(lutProperties[i].samplingKey)};
+        aidlProperties.emplace_back(properties);
+    }
+
+    Luts luts;
+    luts.pfd = ndk::ScopedFileDescriptor(dup(lutFileDescriptor.get()));
+    luts.offsets = lutOffsets;
+    luts.lutProperties = std::move(aidlProperties);
 
     switch (auto error = hwcLayer->setLuts(luts)) {
         case hal::Error::NONE:
