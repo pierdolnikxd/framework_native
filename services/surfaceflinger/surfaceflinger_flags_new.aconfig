@@ -34,6 +34,14 @@ flag {
 } # arr_setframerate_api
 
 flag {
+  name: "arr_setframerate_gte_enum"
+  namespace: "core_graphics"
+  description: "Exposes GTE (greater than or equal to) enum for Android 16"
+  bug: "380949716"
+  is_fixed_read_only: true
+} # arr_setframerate_gte_enum
+
+flag {
   name: "arr_surfacecontrol_setframerate_api"
   namespace: "core_graphics"
   description: "New SDK SurfaceControl.Transaction#setFrameRate API for Android 16"

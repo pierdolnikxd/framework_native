@@ -56,6 +56,7 @@ public:
     bool graphite_renderengine_preview_rollout() const;
 
     /// Trunk stable readonly flags ///
+    bool arr_setframerate_gte_enum() const;
     bool adpf_fmq_sf() const;
     bool connected_display() const;
     bool frame_rate_category_mrr() const;
