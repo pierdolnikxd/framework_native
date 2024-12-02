@@ -34,6 +34,12 @@ constexpr bool kUseLibbinderCache = true;
 constexpr bool kUseLibbinderCache = false;
 #endif
 
+#ifdef LIBBINDER_ADDSERVICE_CACHE
+constexpr bool kUseCacheInAddService = true;
+#else
+constexpr bool kUseCacheInAddService = false;
+#endif
+
 // A service name which is in the static list of cachable services
 const String16 kCachedServiceName = String16("isub");
 
@@ -74,14 +80,58 @@ public:
                 innerSm.addService(String16(name.c_str()), service, allowIsolated, dumpPriority));
     }
 
+    void clearServices() { innerSm.clear(); }
+
     FakeServiceManager innerSm;
 };
+
+class LibbinderCacheAddServiceTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        fakeServiceManager = sp<MockAidlServiceManager>::make();
+        mServiceManager = getServiceManagerShimFromAidlServiceManagerForTests(fakeServiceManager);
+        mServiceManager->enableAddServiceCache(true);
+    }
+
+    void TearDown() override {}
+
+public:
+    void cacheAddServiceAndConfirmCacheHit(const sp<IBinder>& binder1) {
+        // Add a service. This also caches it.
+        EXPECT_EQ(OK, mServiceManager->addService(kCachedServiceName, binder1));
+        // remove services from fakeservicemanager
+        fakeServiceManager->clearServices();
+
+        sp<IBinder> result = mServiceManager->checkService(kCachedServiceName);
+        if (kUseCacheInAddService && kUseLibbinderCache) {
+            // If cache is enabled, we should get the binder.
+            EXPECT_EQ(binder1, result);
+        } else {
+            // If cache is disabled, then we should get the null binder
+            EXPECT_EQ(nullptr, result);
+        }
+    }
+    sp<MockAidlServiceManager> fakeServiceManager;
+    sp<android::IServiceManager> mServiceManager;
+};
+
+TEST_F(LibbinderCacheAddServiceTest, AddLocalServiceAndConfirmCacheHit) {
+    sp<IBinder> binder1 = sp<BBinder>::make();
+    cacheAddServiceAndConfirmCacheHit(binder1);
+}
+
+TEST_F(LibbinderCacheAddServiceTest, AddRemoteServiceAndConfirmCacheHit) {
+    sp<IBinder> binder1 = defaultServiceManager()->checkService(kServerName);
+    ASSERT_NE(binder1, nullptr);
+    cacheAddServiceAndConfirmCacheHit(binder1);
+}
 
 class LibbinderCacheTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        sp<MockAidlServiceManager> sm = sp<MockAidlServiceManager>::make();
-        mServiceManager = getServiceManagerShimFromAidlServiceManagerForTests(sm);
+        fakeServiceManager = sp<MockAidlServiceManager>::make();
+        mServiceManager = getServiceManagerShimFromAidlServiceManagerForTests(fakeServiceManager);
+        mServiceManager->enableAddServiceCache(false);
     }
 
     void TearDown() override {}
@@ -108,6 +158,7 @@ public:
         }
     }
 
+    sp<MockAidlServiceManager> fakeServiceManager;
     sp<android::IServiceManager> mServiceManager;
 };
 
