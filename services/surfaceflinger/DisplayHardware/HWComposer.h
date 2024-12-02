@@ -55,6 +55,7 @@
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayLuts.h>
 #include <aidl/android/hardware/graphics/composer3/LutProperties.h>
+#include <aidl/android/hardware/graphics/composer3/OutputType.h>
 #include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
 
 namespace android {
@@ -112,12 +113,14 @@ public:
         float dpiY = -1.f;
         int32_t configGroup = -1;
         std::optional<hal::VrrConfig> vrrConfig;
+        OutputType hdrOutputType;
 
         friend std::ostream& operator<<(std::ostream& os, const HWCDisplayMode& mode) {
             return os << "id=" << mode.hwcId << " res=" << mode.width << "x" << mode.height
                       << " vsyncPeriod=" << mode.vsyncPeriod << " dpi=" << mode.dpiX << "x"
                       << mode.dpiY << " group=" << mode.configGroup
-                      << " vrrConfig=" << to_string(mode.vrrConfig).c_str();
+                      << " vrrConfig=" << to_string(mode.vrrConfig).c_str()
+                      << " hdrOutputType=" << toString(mode.hdrOutputType);
         }
     };
 

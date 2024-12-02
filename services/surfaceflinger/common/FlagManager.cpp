@@ -259,7 +259,7 @@ FLAG_MANAGER_ACONFIG_FLAG(flush_buffer_slots_to_uncache, "");
 FLAG_MANAGER_ACONFIG_FLAG(force_compile_graphite_renderengine, "");
 FLAG_MANAGER_ACONFIG_FLAG(true_hdr_screenshots, "debug.sf.true_hdr_screenshots");
 FLAG_MANAGER_ACONFIG_FLAG(display_config_error_hal, "");
-FLAG_MANAGER_ACONFIG_FLAG(connected_display_hdr, "");
+FLAG_MANAGER_ACONFIG_FLAG(connected_display_hdr, "debug.sf.connected_display_hdr");
 FLAG_MANAGER_ACONFIG_FLAG(deprecate_frame_tracker, "");
 FLAG_MANAGER_ACONFIG_FLAG(skip_invisible_windows_in_input, "");
 FLAG_MANAGER_ACONFIG_FLAG(begone_bright_hlg, "debug.sf.begone_bright_hlg");
