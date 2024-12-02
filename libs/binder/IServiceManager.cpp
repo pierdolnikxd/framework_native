@@ -127,6 +127,8 @@ public:
     }
     IBinder* onAsBinder() override { return IInterface::asBinder(mUnifiedServiceManager).get(); }
 
+    void enableAddServiceCache(bool value) { mUnifiedServiceManager->enableAddServiceCache(value); }
+
 protected:
     sp<BackendUnifiedServiceManager> mUnifiedServiceManager;
     // AidlRegistrationCallback -> services that its been registered for
