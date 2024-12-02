@@ -465,6 +465,12 @@ bool Scheduler::onDisplayModeChanged(PhysicalDisplayId displayId, const FrameRat
 }
 #pragma clang diagnostic pop
 
+void Scheduler::onDisplayModeRejected(PhysicalDisplayId displayId, DisplayModeId modeId) {
+    if (hasEventThreads()) {
+        eventThreadFor(Cycle::Render).onModeRejected(displayId, modeId);
+    }
+}
+
 void Scheduler::emitModeChangeIfNeeded() {
     if (!mPolicy.modeOpt || !mPolicy.emittedModeOpt) {
         ALOGW("No mode change to emit");
