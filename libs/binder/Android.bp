@@ -477,9 +477,34 @@ libbinder_client_cache_config {
     },
 }
 
+soong_config_module_type {
+    name: "libbinder_addservice_cache_config",
+    module_type: "cc_defaults",
+    config_namespace: "libbinder",
+    bool_variables: ["release_libbinder_addservice_cache"],
+    properties: [
+        "cflags",
+    ],
+}
+
+libbinder_addservice_cache_config {
+    name: "libbinder_addservice_cache_flag",
+    soong_config_variables: {
+        release_libbinder_addservice_cache: {
+            cflags: ["-DLIBBINDER_ADDSERVICE_CACHE"],
+            conditions_default: {
+                cflags: ["-DNO_LIBBINDER_ADDSERVICE_CACHE"],
+            },
+        },
+    },
+}
+
 cc_defaults {
     name: "libbinder_kernel_defaults",
-    defaults: ["libbinder_client_cache_flag"],
+    defaults: [
+        "libbinder_client_cache_flag",
+        "libbinder_addservice_cache_flag",
+    ],
     srcs: [
         "BufferedTextOutput.cpp",
         "BackendUnifiedServiceManager.cpp",
