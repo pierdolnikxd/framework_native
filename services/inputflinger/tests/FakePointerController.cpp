@@ -148,15 +148,20 @@ bool FakePointerController::isPointerShown() {
     return mIsPointerShown;
 }
 
-void FakePointerController::move(float deltaX, float deltaY) {
-    if (!mEnabled) return;
+FloatPoint FakePointerController::move(float deltaX, float deltaY) {
+    if (!mEnabled) return {0, 0};
 
     mX += deltaX;
+    mY += deltaY;
+
+    const FloatPoint position(mX, mY);
+
     if (mX < mMinX) mX = mMinX;
     if (mX > mMaxX) mX = mMaxX;
-    mY += deltaY;
     if (mY < mMinY) mY = mMinY;
     if (mY > mMaxY) mY = mMaxY;
+
+    return {position.x - mX, position.y - mY};
 }
 
 void FakePointerController::fade(Transition) {
@@ -188,6 +193,10 @@ void FakePointerController::clearSpots() {
     if (!mEnabled) return;
 
     mSpotsByDisplay.clear();
+}
+
+ui::Transform FakePointerController::getDisplayTransform() const {
+    return ui::Transform();
 }
 
 } // namespace android

@@ -72,8 +72,12 @@ public:
     /* Dumps the state of the pointer controller. */
     virtual std::string dump() = 0;
 
-    /* Move the pointer. */
-    virtual void move(float deltaX, float deltaY) = 0;
+    /* Move the pointer and return unconsumed delta if the pointer has crossed the current
+     * viewport bounds.
+     *
+     * Return value may be used to move pointer to corresponding adjacent display, if it exists in
+     * the display-topology */
+    [[nodiscard]] virtual FloatPoint move(float deltaX, float deltaY) = 0;
 
     /* Sets the absolute location of the pointer. */
     virtual void setPosition(float x, float y) = 0;
@@ -145,6 +149,8 @@ public:
 
     /* Resets the flag to skip screenshot of the pointer indicators for all displays. */
     virtual void clearSkipScreenshotFlags() = 0;
+
+    virtual ui::Transform getDisplayTransform() const = 0;
 };
 
 } // namespace android

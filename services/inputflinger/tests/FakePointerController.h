@@ -48,6 +48,7 @@ public:
     void setSkipScreenshotFlagForDisplay(ui::LogicalDisplayId displayId) override;
     void clearSkipScreenshotFlags() override;
     void fade(Transition) override;
+    ui::Transform getDisplayTransform() const override;
 
     void assertViewportSet(ui::LogicalDisplayId displayId);
     void assertViewportNotSet();
@@ -65,7 +66,7 @@ public:
 
 private:
     std::string dump() override { return ""; }
-    void move(float deltaX, float deltaY) override;
+    FloatPoint move(float deltaX, float deltaY) override;
     void unfade(Transition) override;
     void setPresentation(Presentation) override {}
     void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,

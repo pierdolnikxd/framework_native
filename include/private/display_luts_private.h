@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/display_luts.h>
 #include <stdint.h>
 #include <vector>
 #include <utils/RefBase.h>
@@ -29,9 +30,9 @@ struct ADisplayLutsEntry_buffer {
 };
 
 struct ADisplayLutsEntry_properties {
-    int32_t dimension;
+    ADisplayLuts_Dimension dimension;
     int32_t size;
-    int32_t samplingKey;
+    ADisplayLuts_SamplingKey samplingKey;
 };
 
 struct ADisplayLutsEntry: public RefBase {

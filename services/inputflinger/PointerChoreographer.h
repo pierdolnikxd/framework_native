@@ -113,6 +113,24 @@ public:
     void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
+    // TODO(b/362719483) remove these when real topology is available
+    enum class DisplayPosition {
+        RIGHT,
+        TOP,
+        LEFT,
+        BOTTOM,
+        ftl_last = BOTTOM,
+    };
+
+    struct AdjacentDisplay {
+        ui::LogicalDisplayId displayId;
+        DisplayPosition position;
+        float offsetPx;
+    };
+    void setDisplayTopology(
+            const std::unordered_map<ui::LogicalDisplayId, std::vector<AdjacentDisplay>>&
+                    displayTopology);
+
     void dump(std::string& dump) override;
 
 private:
@@ -152,6 +170,22 @@ private:
     void onPrivacySensitiveDisplaysChangedLocked(
             const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays)
             REQUIRES(getLock());
+
+    void handleUnconsumedDeltaLocked(PointerControllerInterface& pc,
+                                     const FloatPoint& unconsumedDelta) REQUIRES(getLock());
+
+    void populateFakeDisplayTopologyLocked(const std::vector<gui::DisplayInfo>& displayInfos)
+            REQUIRES(getLock());
+
+    std::optional<std::pair<const DisplayViewport*, float /*offset*/>> findDestinationDisplayLocked(
+            const ui::LogicalDisplayId sourceDisplayId, const DisplayPosition sourceBoundary,
+            float cursorOffset) const REQUIRES(getLock());
+
+    static vec2 calculateDestinationPosition(const DisplayViewport& destinationViewport,
+                                             float pointerOffset, DisplayPosition sourceBoundary);
+
+    std::unordered_map<ui::LogicalDisplayId, std::vector<AdjacentDisplay>> mTopology
+            GUARDED_BY(getLock());
 
     /* This listener keeps tracks of visible privacy sensitive displays and updates the
      * choreographer if there are any changes.

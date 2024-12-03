@@ -43,6 +43,7 @@ typedef enum ADisplayLuts_Dimension ADisplayLuts_Dimension;
 enum ADisplayLuts_SamplingKey : int32_t {
     ADISPLAYLUTS_SAMPLINGKEY_RGB = 0,
     ADISPLAYLUTS_SAMPLINGKEY_MAX_RGB = 1,
+    ADISPLAYLUTS_SAMPLINGKEY_CIE_Y = 2,
 };
 typedef enum ADisplayLuts_SamplingKey ADisplayLuts_SamplingKey;
 
@@ -74,7 +75,8 @@ typedef struct ADisplayLuts ADisplayLuts;
  * @return a new \a ADisplayLutsEntry instance.
  */
 ADisplayLutsEntry* _Nonnull ADisplayLutsEntry_createEntry(float* _Nonnull buffer,
-        int32_t length, int32_t dimension, int32_t key) __INTRODUCED_IN(36);
+    int32_t length, ADisplayLuts_Dimension dimension, ADisplayLuts_SamplingKey key)
+    __INTRODUCED_IN(36);
 
 /**
  * Destroy the \a ADisplayLutsEntry instance.
