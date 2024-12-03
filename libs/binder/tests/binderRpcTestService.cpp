@@ -143,8 +143,8 @@ int main(int argc, char* argv[]) {
             break;
         case SocketType::VSOCK:
             LOG_ALWAYS_FATAL_IF(OK !=
-                                        server->setupVsockServer(VMADDR_CID_LOCAL, VMADDR_PORT_ANY,
-                                                                 &outPort),
+                                        server->setupVsockServer(VMADDR_CID_LOCAL,
+                                                                 serverConfig.vsockPort),
                                 "Need `sudo modprobe vsock_loopback`?");
             break;
         case SocketType::INET: {
