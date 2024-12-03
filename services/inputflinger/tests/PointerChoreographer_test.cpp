@@ -135,7 +135,7 @@ protected:
         });
 
         ON_CALL(mMockPolicy, notifyPointerDisplayIdChanged)
-                .WillByDefault([this](ui::LogicalDisplayId displayId, const FloatPoint& position) {
+                .WillByDefault([this](ui::LogicalDisplayId displayId, const vec2& position) {
                     mPointerDisplayIdNotified = displayId;
                 });
     }
@@ -2604,9 +2604,8 @@ TEST_P(PointerVisibilityAndTouchpadTapStateOnKeyPressTestFixture, TestMetaKeyCom
 using PointerChoreographerDisplayTopologyTestFixtureParam =
         std::tuple<std::string_view /*name*/, int32_t /*source device*/,
                    ControllerType /*PointerController*/, ToolType /*pointer tool type*/,
-                   FloatPoint /*source position*/, FloatPoint /*hover move X/Y*/,
-                   ui::LogicalDisplayId /*destination display*/,
-                   FloatPoint /*destination position*/>;
+                   vec2 /*source position*/, vec2 /*hover move X/Y*/,
+                   ui::LogicalDisplayId /*destination display*/, vec2 /*destination position*/>;
 
 class PointerChoreographerDisplayTopologyTestFixture
       : public PointerChoreographerTest,
@@ -2708,67 +2707,63 @@ INSTANTIATE_TEST_SUITE_P(
                 // Note: Upon viewport transition cursor will be positioned at the boundary of the
                 // destination, as we drop any unconsumed delta.
                 std::make_tuple("UnchangedDisplay", AINPUT_SOURCE_MOUSE, ControllerType::MOUSE,
-                                ToolType::MOUSE, FloatPoint(50, 50) /* initial x/y */,
-                                FloatPoint(25, 25) /* delta x/y */,
+                                ToolType::MOUSE, vec2(50, 50) /* initial x/y */,
+                                vec2(25, 25) /* delta x/y */,
                                 PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID,
-                                FloatPoint(75, 75) /* destination x/y */),
-                std::make_tuple(
-                        "TransitionToRightDisplay", AINPUT_SOURCE_MOUSE, ControllerType::MOUSE,
-                        ToolType::MOUSE, FloatPoint(50, 50) /* initial x/y */,
-                        FloatPoint(100, 25) /* delta x/y */,
-                        PointerChoreographerDisplayTopologyTestFixture::DISPLAY_RIGHT_ID,
-                        FloatPoint(0, 50 + 25 - 10) /* Left edge: (0, source + delta - offset) */),
+                                vec2(75, 75) /* destination x/y */),
+                std::make_tuple("TransitionToRightDisplay", AINPUT_SOURCE_MOUSE,
+                                ControllerType::MOUSE, ToolType::MOUSE,
+                                vec2(50, 50) /* initial x/y */, vec2(100, 25) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_RIGHT_ID,
+                                vec2(0,
+                                     50 + 25 - 10) /* Left edge: (0, source + delta - offset) */),
                 std::make_tuple(
                         "TransitionToLeftDisplay", AINPUT_SOURCE_MOUSE, ControllerType::MOUSE,
-                        ToolType::MOUSE, FloatPoint(50, 50) /* initial x/y */,
-                        FloatPoint(-100, 25) /* delta x/y */,
+                        ToolType::MOUSE, vec2(50, 50) /* initial x/y */,
+                        vec2(-100, 25) /* delta x/y */,
                         PointerChoreographerDisplayTopologyTestFixture::DISPLAY_LEFT_ID,
-                        FloatPoint(90,
-                                   50 + 25 - 10) /* Right edge: (width, source + delta - offset*/),
-                std::make_tuple(
-                        "TransitionToTopDisplay", AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
-                        ControllerType::MOUSE, ToolType::FINGER,
-                        FloatPoint(50, 50) /* initial x/y */, FloatPoint(25, -100) /* delta x/y */,
-                        PointerChoreographerDisplayTopologyTestFixture::DISPLAY_TOP_ID,
-                        FloatPoint(50 + 25 - 10,
-                                   90) /* Bottom edge: (source + delta - offset, height) */),
-                std::make_tuple(
-                        "TransitionToBottomDisplay", AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
-                        ControllerType::MOUSE, ToolType::FINGER,
-                        FloatPoint(50, 50) /* initial x/y */, FloatPoint(25, 100) /* delta x/y */,
-                        PointerChoreographerDisplayTopologyTestFixture::DISPLAY_BOTTOM_ID,
-                        FloatPoint(50 + 25 - 10, 0) /* Top edge: (source + delta - offset, 0) */),
+                        vec2(90, 50 + 25 - 10) /* Right edge: (width, source + delta - offset*/),
+                std::make_tuple("TransitionToTopDisplay",
+                                AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, ControllerType::MOUSE,
+                                ToolType::FINGER, vec2(50, 50) /* initial x/y */,
+                                vec2(25, -100) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_TOP_ID,
+                                vec2(50 + 25 - 10,
+                                     90) /* Bottom edge: (source + delta - offset, height) */),
+                std::make_tuple("TransitionToBottomDisplay",
+                                AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, ControllerType::MOUSE,
+                                ToolType::FINGER, vec2(50, 50) /* initial x/y */,
+                                vec2(25, 100) /* delta x/y */,
+                                PointerChoreographerDisplayTopologyTestFixture::DISPLAY_BOTTOM_ID,
+                                vec2(50 + 25 - 10, 0) /* Top edge: (source + delta - offset, 0) */),
                 std::make_tuple("NoTransitionAtTopOffset", AINPUT_SOURCE_MOUSE,
                                 ControllerType::MOUSE, ToolType::MOUSE,
-                                FloatPoint(5, 50) /* initial x/y */,
-                                FloatPoint(0, -100) /* Move Up */,
+                                vec2(5, 50) /* initial x/y */, vec2(0, -100) /* Move Up */,
                                 PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID,
-                                FloatPoint(5, 0) /* Top edge */),
+                                vec2(5, 0) /* Top edge */),
                 std::make_tuple("NoTransitionAtRightOffset", AINPUT_SOURCE_MOUSE,
                                 ControllerType::MOUSE, ToolType::MOUSE,
-                                FloatPoint(95, 5) /* initial x/y */,
-                                FloatPoint(100, 0) /* Move Right */,
+                                vec2(95, 5) /* initial x/y */, vec2(100, 0) /* Move Right */,
                                 PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID,
-                                FloatPoint(99, 5) /* Top edge */),
+                                vec2(99, 5) /* Top edge */),
                 std::make_tuple("NoTransitionAtBottomOffset",
                                 AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, ControllerType::MOUSE,
-                                ToolType::FINGER, FloatPoint(5, 95) /* initial x/y */,
-                                FloatPoint(0, 100) /* Move Down */,
+                                ToolType::FINGER, vec2(5, 95) /* initial x/y */,
+                                vec2(0, 100) /* Move Down */,
                                 PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID,
-                                FloatPoint(5, 99) /* Bottom edge */),
+                                vec2(5, 99) /* Bottom edge */),
                 std::make_tuple("NoTransitionAtLeftOffset",
                                 AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD, ControllerType::MOUSE,
-                                ToolType::FINGER, FloatPoint(5, 5) /* initial x/y */,
-                                FloatPoint(-100, 0) /* Move Left */,
+                                ToolType::FINGER, vec2(5, 5) /* initial x/y */,
+                                vec2(-100, 0) /* Move Left */,
                                 PointerChoreographerDisplayTopologyTestFixture::DISPLAY_CENTER_ID,
-                                FloatPoint(0, 5) /* Left edge */),
+                                vec2(0, 5) /* Left edge */),
                 std::make_tuple(
                         "TransitionAtTopRightCorner", AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
-                        ControllerType::MOUSE, ToolType::FINGER,
-                        FloatPoint(95, 5) /* initial x/y */,
-                        FloatPoint(10, -10) /* Move dignally to top right corner */,
+                        ControllerType::MOUSE, ToolType::FINGER, vec2(95, 5) /* initial x/y */,
+                        vec2(10, -10) /* Move dignally to top right corner */,
                         PointerChoreographerDisplayTopologyTestFixture::DISPLAY_TOP_RIGHT_CORNER_ID,
-                        FloatPoint(0, 90) /* bottom left corner */)),
+                        vec2(0, 90) /* bottom left corner */)),
         [](const testing::TestParamInfo<PointerChoreographerDisplayTopologyTestFixtureParam>& p) {
             return std::string{std::get<0>(p.param)};
         });
