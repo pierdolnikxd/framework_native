@@ -4410,7 +4410,7 @@ void SurfaceFlinger::sendNotifyExpectedPresentHint(PhysicalDisplayId displayId) 
     scheduleNotifyExpectedPresentHint(displayId);
 }
 
-void SurfaceFlinger::onCommitNotComposited(PhysicalDisplayId pacesetterDisplayId) {
+void SurfaceFlinger::onCommitNotComposited() {
     if (FlagManager::getInstance().commit_not_composited()) {
         mFrameTimeline->onCommitNotComposited();
     }

@@ -701,7 +701,7 @@ private:
     void onChoreographerAttached() override;
     void onExpectedPresentTimePosted(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
                                      Fps renderRate) override;
-    void onCommitNotComposited(PhysicalDisplayId pacesetterDisplayId) override
+    void onCommitNotComposited() override
             REQUIRES(kMainThreadContext);
     void vrrDisplayIdle(bool idle) override;
 
