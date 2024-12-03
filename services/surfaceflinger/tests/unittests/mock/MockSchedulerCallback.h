@@ -30,7 +30,7 @@ struct SchedulerCallback final : ISchedulerCallback {
     MOCK_METHOD(void, onChoreographerAttached, (), (override));
     MOCK_METHOD(void, onExpectedPresentTimePosted, (TimePoint, ftl::NonNull<DisplayModePtr>, Fps),
                 (override));
-    MOCK_METHOD(void, onCommitNotComposited, (PhysicalDisplayId), (override));
+    MOCK_METHOD(void, onCommitNotComposited, (), (override));
     MOCK_METHOD(void, vrrDisplayIdle, (bool), (override));
 };
 
@@ -41,7 +41,7 @@ struct NoOpSchedulerCallback final : ISchedulerCallback {
     void triggerOnFrameRateOverridesChanged() override {}
     void onChoreographerAttached() override {}
     void onExpectedPresentTimePosted(TimePoint, ftl::NonNull<DisplayModePtr>, Fps) override {}
-    void onCommitNotComposited(PhysicalDisplayId) override {}
+    void onCommitNotComposited() override {}
     void vrrDisplayIdle(bool) override {}
 };
 
