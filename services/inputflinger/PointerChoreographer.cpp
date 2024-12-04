@@ -64,9 +64,8 @@ bool isMouseOrTouchpad(uint32_t sources) {
              !isFromSource(sources, AINPUT_SOURCE_STYLUS));
 }
 
-inline void notifyPointerDisplayChange(
-        std::optional<std::tuple<ui::LogicalDisplayId, FloatPoint>> change,
-        PointerChoreographerPolicyInterface& policy) {
+inline void notifyPointerDisplayChange(std::optional<std::tuple<ui::LogicalDisplayId, vec2>> change,
+                                       PointerChoreographerPolicyInterface& policy) {
     if (!change) {
         return;
     }
@@ -245,9 +244,9 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
     if (MotionEvent::isValidCursorPosition(args.xCursorPosition, args.yCursorPosition)) {
         // This is an absolute mouse device that knows about the location of the cursor on the
         // display, so set the cursor position to the specified location.
-        const auto [x, y] = pc.getPosition();
-        const float deltaX = args.xCursorPosition - x;
-        const float deltaY = args.yCursorPosition - y;
+        const auto position = pc.getPosition();
+        const float deltaX = args.xCursorPosition - position.x;
+        const float deltaY = args.yCursorPosition - position.y;
         newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
         pc.setPosition(args.xCursorPosition, args.yCursorPosition);
@@ -273,15 +272,15 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
         processPointerDeviceMotionEventLocked(/*byref*/ newArgs, /*byref*/ pc);
     } else {
         // This is a trackpad gesture with fake finger(s) that should not move the mouse pointer.
-        const auto [x, y] = pc.getPosition();
+        const auto position = pc.getPosition();
         for (uint32_t i = 0; i < newArgs.getPointerCount(); i++) {
             newArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X,
-                                                  args.pointerCoords[i].getX() + x);
+                                                  args.pointerCoords[i].getX() + position.x);
             newArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y,
-                                                  args.pointerCoords[i].getY() + y);
+                                                  args.pointerCoords[i].getY() + position.y);
         }
-        newArgs.xCursorPosition = x;
-        newArgs.yCursorPosition = y;
+        newArgs.xCursorPosition = position.x;
+        newArgs.yCursorPosition = position.y;
     }
 
     // Note displayId may have changed if the cursor moved to a different display
@@ -296,7 +295,7 @@ void PointerChoreographer::processPointerDeviceMotionEventLocked(NotifyMotionArg
     const float deltaX = newArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
     const float deltaY = newArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
 
-    FloatPoint unconsumedDelta = pc.move(deltaX, deltaY);
+    vec2 unconsumedDelta = pc.move(deltaX, deltaY);
     if (com::android::input::flags::connected_displays_cursor() &&
         (std::abs(unconsumedDelta.x) > 0 || std::abs(unconsumedDelta.y) > 0)) {
         handleUnconsumedDeltaLocked(pc, unconsumedDelta);
@@ -304,25 +303,23 @@ void PointerChoreographer::processPointerDeviceMotionEventLocked(NotifyMotionArg
         newArgs.displayId = pc.getDisplayId();
     }
 
-    const auto [x, y] = pc.getPosition();
-    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
-    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
-    newArgs.xCursorPosition = x;
-    newArgs.yCursorPosition = y;
+    const auto position = pc.getPosition();
+    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, position.x);
+    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, position.y);
+    newArgs.xCursorPosition = position.x;
+    newArgs.yCursorPosition = position.y;
 }
 
 void PointerChoreographer::handleUnconsumedDeltaLocked(PointerControllerInterface& pc,
-                                                       const FloatPoint& unconsumedDelta) {
+                                                       const vec2& unconsumedDelta) {
     // Display topology is in rotated coordinate space and Pointer controller returns and expects
     // values in the un-rotated coordinate space. So we need to transform delta and cursor position
     // back to the rotated coordinate space to lookup adjacent display in the display topology.
     const auto& sourceDisplayTransform = pc.getDisplayTransform();
     const vec2 rotatedUnconsumedDelta =
-            transformWithoutTranslation(sourceDisplayTransform,
-                                        {unconsumedDelta.x, unconsumedDelta.y});
-    const FloatPoint cursorPosition = pc.getPosition();
-    const vec2 rotatedCursorPosition =
-            sourceDisplayTransform.transform(cursorPosition.x, cursorPosition.y);
+            transformWithoutTranslation(sourceDisplayTransform, unconsumedDelta);
+    const vec2 cursorPosition = pc.getPosition();
+    const vec2 rotatedCursorPosition = sourceDisplayTransform.transform(cursorPosition);
 
     // To find out the boundary that cursor is crossing we are checking delta in x and y direction
     // respectively. This prioritizes x direction over y.
@@ -769,7 +766,7 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
 PointerChoreographer::PointerDisplayChange
 PointerChoreographer::calculatePointerDisplayChangeToNotify() {
     ui::LogicalDisplayId displayIdToNotify = ui::LogicalDisplayId::INVALID;
-    FloatPoint cursorPosition = {0, 0};
+    vec2 cursorPosition = {0, 0};
     if (const auto it = mMousePointersByDisplay.find(mDefaultMouseDisplayId);
         it != mMousePointersByDisplay.end()) {
         const auto& pointerController = it->second;
@@ -840,7 +837,7 @@ std::optional<DisplayViewport> PointerChoreographer::getViewportForPointerDevice
     return std::nullopt;
 }
 
-FloatPoint PointerChoreographer::getMouseCursorPosition(ui::LogicalDisplayId displayId) {
+vec2 PointerChoreographer::getMouseCursorPosition(ui::LogicalDisplayId displayId) {
     std::scoped_lock _l(getLock());
     const ui::LogicalDisplayId resolvedDisplayId = getTargetMouseDisplayLocked(displayId);
     if (auto it = mMousePointersByDisplay.find(resolvedDisplayId);
