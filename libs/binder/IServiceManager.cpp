@@ -152,7 +152,8 @@ protected:
     virtual Status realGetService(const std::string& name, sp<IBinder>* _aidl_return) {
         Service service;
         Status status = mUnifiedServiceManager->getService2(name, &service);
-        *_aidl_return = service.get<Service::Tag::binder>();
+        auto serviceWithMetadata = service.get<Service::Tag::serviceWithMetadata>();
+        *_aidl_return = serviceWithMetadata.service;
         return status;
     }
 };
@@ -607,7 +608,7 @@ sp<IBinder> CppBackendShim::checkService(const String16& name) const {
     if (!mUnifiedServiceManager->checkService(String8(name).c_str(), &ret).isOk()) {
         return nullptr;
     }
-    return ret.get<Service::Tag::binder>();
+    return ret.get<Service::Tag::serviceWithMetadata>().service;
 }
 
 status_t CppBackendShim::addService(const String16& name, const sp<IBinder>& service,

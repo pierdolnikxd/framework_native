@@ -40,6 +40,12 @@ constexpr bool kUseCacheInAddService = true;
 constexpr bool kUseCacheInAddService = false;
 #endif
 
+#ifdef LIBBINDER_REMOVE_CACHE_STATIC_LIST
+constexpr bool kRemoveStaticList = true;
+#else
+constexpr bool kRemoveStaticList = false;
+#endif
+
 // A service name which is in the static list of cachable services
 const String16 kCachedServiceName = String16("isub");
 
@@ -69,8 +75,10 @@ public:
     MockAidlServiceManager() : innerSm() {}
 
     binder::Status checkService(const ::std::string& name, os::Service* _out) override {
-        sp<IBinder> binder = innerSm.getService(String16(name.c_str()));
-        *_out = os::Service::make<os::Service::Tag::binder>(binder);
+        os::ServiceWithMetadata serviceWithMetadata = os::ServiceWithMetadata();
+        serviceWithMetadata.service = innerSm.getService(String16(name.c_str()));
+        serviceWithMetadata.isLazyService = false;
+        *_out = os::Service::make<os::Service::Tag::serviceWithMetadata>(serviceWithMetadata);
         return binder::Status::ok();
     }
 
@@ -84,6 +92,75 @@ public:
 
     FakeServiceManager innerSm;
 };
+
+// Returns services with isLazyService flag as true.
+class MockAidlServiceManager2 : public os::IServiceManagerDefault {
+public:
+    MockAidlServiceManager2() : innerSm() {}
+
+    binder::Status checkService(const ::std::string& name, os::Service* _out) override {
+        os::ServiceWithMetadata serviceWithMetadata = os::ServiceWithMetadata();
+        serviceWithMetadata.service = innerSm.getService(String16(name.c_str()));
+        serviceWithMetadata.isLazyService = true;
+        *_out = os::Service::make<os::Service::Tag::serviceWithMetadata>(serviceWithMetadata);
+        return binder::Status::ok();
+    }
+
+    binder::Status addService(const std::string& name, const sp<IBinder>& service,
+                              bool allowIsolated, int32_t dumpPriority) override {
+        return binder::Status::fromStatusT(
+                innerSm.addService(String16(name.c_str()), service, allowIsolated, dumpPriority));
+    }
+
+    void clearServices() { innerSm.clear(); }
+
+    FakeServiceManager innerSm;
+};
+
+class LibbinderCacheRemoveStaticList : public ::testing::Test {
+protected:
+    void SetUp() override {
+        fakeServiceManager = sp<MockAidlServiceManager2>::make();
+        mServiceManager = getServiceManagerShimFromAidlServiceManagerForTests(fakeServiceManager);
+        mServiceManager->enableAddServiceCache(true);
+    }
+    void TearDown() override {}
+
+public:
+    void cacheAddServiceAndConfirmCacheMiss(const sp<IBinder>& binder1) {
+        // Add a service. This shouldn't cache it.
+        EXPECT_EQ(OK,
+                  mServiceManager->addService(kCachedServiceName, binder1,
+                                              /*allowIsolated = */ false,
+                                              android::os::IServiceManager::FLAG_IS_LAZY_SERVICE));
+        // Try to populate cache. Cache shouldn't be updated.
+        EXPECT_EQ(binder1, mServiceManager->checkService(kCachedServiceName));
+        fakeServiceManager->clearServices();
+        EXPECT_EQ(nullptr, mServiceManager->checkService(kCachedServiceName));
+    }
+
+    sp<MockAidlServiceManager2> fakeServiceManager;
+    sp<android::IServiceManager> mServiceManager;
+};
+
+TEST_F(LibbinderCacheRemoveStaticList, AddLocalServiceAndConfirmCacheMiss) {
+    if (!kRemoveStaticList) {
+        GTEST_SKIP() << "Skipping as feature is not enabled";
+        return;
+    }
+    sp<IBinder> binder1 = sp<BBinder>::make();
+    cacheAddServiceAndConfirmCacheMiss(binder1);
+}
+
+TEST_F(LibbinderCacheRemoveStaticList, AddRemoteServiceAndConfirmCacheMiss) {
+    if (!kRemoveStaticList) {
+        GTEST_SKIP() << "Skipping as feature is not enabled";
+        return;
+    }
+    sp<IBinder> binder1 = defaultServiceManager()->checkService(kServerName);
+    ASSERT_NE(binder1, nullptr);
+    cacheAddServiceAndConfirmCacheMiss(binder1);
+}
 
 class LibbinderCacheAddServiceTest : public ::testing::Test {
 protected:
@@ -231,7 +308,13 @@ TEST_F(LibbinderCacheTest, NullBinderNotCached) {
     EXPECT_EQ(binder2, result);
 }
 
+// TODO(b/333854840): Remove this test removing the static list
 TEST_F(LibbinderCacheTest, DoNotCacheServiceNotInList) {
+    if (kRemoveStaticList) {
+        GTEST_SKIP() << "Skipping test as static list is disabled";
+        return;
+    }
+
     sp<IBinder> binder1 = sp<BBinder>::make();
     sp<IBinder> binder2 = sp<BBinder>::make();
     String16 serviceName = String16("NewLibbinderCacheTest");

@@ -16,15 +16,17 @@
 
 package android.os;
 
-import android.os.ServiceWithMetadata;
-
 /**
- * Service is a union of different service types that can be returned
- * by the internal {@link ServiceManager#getService(name)} API.
- *
+ * Service binder with metadata.
  * @hide
  */
-union Service {
-    ServiceWithMetadata serviceWithMetadata;
-    @nullable IBinder accessor;
+parcelable ServiceWithMetadata {
+    /**
+     * IBinder to service
+     */
+    @nullable IBinder service;
+    /**
+     * boolean if the IBinder can be cached by client.
+     */
+    boolean isLazyService;
 }

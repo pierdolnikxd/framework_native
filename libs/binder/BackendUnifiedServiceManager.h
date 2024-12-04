@@ -159,7 +159,8 @@ private:
     binder::Status toBinderService(const ::std::string& name, const os::Service& in,
                                    os::Service* _out);
     binder::Status updateCache(const std::string& serviceName, const os::Service& service);
-    binder::Status updateCache(const std::string& serviceName, const sp<IBinder>& binder);
+    binder::Status updateCache(const std::string& serviceName, const sp<IBinder>& binder,
+                               bool isLazyService);
     bool returnIfCached(const std::string& serviceName, os::Service* _out);
 };
 
