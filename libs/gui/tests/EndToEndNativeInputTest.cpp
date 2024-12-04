@@ -1212,7 +1212,7 @@ public:
         sp<IGraphicBufferConsumer> consumer;
         sp<IGraphicBufferProducer> producer;
         BufferQueue::createBufferQueue(&producer, &consumer);
-        consumer->setConsumerName(String8("Virtual disp consumer"));
+        consumer->setConsumerName(String8("Virtual disp consumer (MultiDisplayTests)"));
         consumer->setDefaultBufferSize(width, height);
         mProducers.push_back(producer);
 

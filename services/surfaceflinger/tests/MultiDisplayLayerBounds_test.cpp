@@ -47,7 +47,7 @@ protected:
 
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&mProducer, &consumer);
-        consumer->setConsumerName(String8("Virtual disp consumer"));
+        consumer->setConsumerName(String8("Virtual disp consumer (MultiDisplayLayerBounds)"));
         consumer->setDefaultBufferSize(mMainDisplayMode.resolution.getWidth(),
                                        mMainDisplayMode.resolution.getHeight());
     }
