@@ -96,6 +96,7 @@ enum ACpuHeadroomCalculationType {
      */
     ACPU_HEADROOM_CALCULATION_TYPE_AVERAGE = 1,
 };
+typedef enum ACpuHeadroomCalculationType ACpuHeadroomCalculationType;
 
 enum AGpuHeadroomCalculationType {
     /**
@@ -109,6 +110,7 @@ enum AGpuHeadroomCalculationType {
      */
     AGPU_HEADROOM_CALCULATION_TYPE_AVERAGE = 1,
 };
+typedef enum AGpuHeadroomCalculationType AGpuHeadroomCalculationType;
 
 /**
  * Sets the headroom calculation window size in ACpuHeadroomParams.
