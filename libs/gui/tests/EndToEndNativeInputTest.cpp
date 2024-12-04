@@ -34,6 +34,8 @@
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
 
+#include <gui/IConsumerListener.h>
+#include <gui/IGraphicBufferConsumer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -1214,7 +1216,15 @@ public:
         BufferQueue::createBufferQueue(&producer, &consumer);
         consumer->setConsumerName(String8("Virtual disp consumer (MultiDisplayTests)"));
         consumer->setDefaultBufferSize(width, height);
-        mProducers.push_back(producer);
+
+        class StubConsumerListener : public BnConsumerListener {
+            virtual void onFrameAvailable(const BufferItem&) override {}
+            virtual void onBuffersReleased() override {}
+            virtual void onSidebandStreamChanged() override {}
+        };
+
+        consumer->consumerConnect(sp<StubConsumerListener>::make(), true);
+        mBufferQueues.push_back({consumer, producer});
 
         std::string name = "VirtualDisplay";
         name += std::to_string(mVirtualDisplays.size());
@@ -1231,7 +1241,7 @@ public:
     }
 
     std::vector<sp<IBinder>> mVirtualDisplays;
-    std::vector<sp<IGraphicBufferProducer>> mProducers;
+    std::vector<std::tuple<sp<IGraphicBufferConsumer>, sp<IGraphicBufferProducer>>> mBufferQueues;
 };
 
 TEST_F(MultiDisplayTests, drop_touch_if_layer_on_invalid_display) {
