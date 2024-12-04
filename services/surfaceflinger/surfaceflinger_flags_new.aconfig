@@ -31,6 +31,7 @@ flag {
   description: "New SDK Surface#setFrameRate API and Surface.FrameRateParams for Android 16"
   bug: "356987016"
   is_fixed_read_only: true
+  is_exported: true
 } # arr_setframerate_api
 
 flag {
@@ -47,6 +48,7 @@ flag {
   description: "New SDK SurfaceControl.Transaction#setFrameRate API for Android 16"
   bug: "356987016"
   is_fixed_read_only: true
+  is_exported: true
 } # arr_surfacecontrol_setframerate_api
 
 flag {
