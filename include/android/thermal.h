@@ -254,7 +254,7 @@ typedef struct AThermalHeadroomThreshold AThermalHeadroomThreshold;
  * The headroom threshold is used to interpret the possible thermal throttling status based on
  * the headroom prediction. For example, if the headroom threshold for
  * {@link ATHERMAL_STATUS_LIGHT} is 0.7, and a headroom prediction in 10s returns 0.75
- * (or {@code AThermal_getThermalHeadroom(10)=0.75}), one can expect that in 10 seconds the system
+ * (or `AThermal_getThermalHeadroom(10)=0.75`), one can expect that in 10 seconds the system
  * could be in lightly throttled state if the workload remains the same. The app can consider
  * taking actions according to the nearest throttling status the difference between the headroom and
  * the threshold.
@@ -262,10 +262,10 @@ typedef struct AThermalHeadroomThreshold AThermalHeadroomThreshold;
  * For new devices it's guaranteed to have a single sensor, but for older devices with multiple
  * sensors reporting different threshold values, the minimum threshold is taken to be conservative
  * on predictions. Thus, when reading real-time headroom, it's not guaranteed that a real-time value
- * of 0.75 (or {@code AThermal_getThermalHeadroom(0)}=0.75) exceeding the threshold of 0.7 above
+ * of 0.75 (or `AThermal_getThermalHeadroom(0)`=0.75) exceeding the threshold of 0.7 above
  * will always come with lightly throttled state
- * (or {@code AThermal_getCurrentThermalStatus()=ATHERMAL_STATUS_LIGHT}) but it can be lower
- * (or {@code AThermal_getCurrentThermalStatus()=ATHERMAL_STATUS_NONE}).
+ * (or `AThermal_getCurrentThermalStatus()=ATHERMAL_STATUS_LIGHT`) but it can be lower
+ * (or `AThermal_getCurrentThermalStatus()=ATHERMAL_STATUS_NONE`).
  * While it's always guaranteed that the device won't be throttled heavier than the unmet
  * threshold's state, so a real-time headroom of 0.75 will never come with
  * {@link #ATHERMAL_STATUS_MODERATE} but always lower, and 0.65 will never come with
