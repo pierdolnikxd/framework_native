@@ -280,6 +280,9 @@ void LayerHistory::partitionLayers(nsecs_t now, bool isVrrDevice) {
                     case Layer::FrameRateCompatibility::Exact:
                         return LayerVoteType::ExplicitExact;
                     case Layer::FrameRateCompatibility::Gte:
+                        if (frameRate.isNoVote()) {
+                            return LayerVoteType::NoVote;
+                        }
                         if (isVrrDevice) {
                             return LayerVoteType::ExplicitGte;
                         } else {
